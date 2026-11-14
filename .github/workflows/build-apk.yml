@@ -23,16 +23,43 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Create Android app around index.html
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prepare app files
         run: |
           mkdir app && cd app
           npm init -y > /dev/null
-          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
-          mkdir www && cp ../index.html www/index.html
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 @huggingface/transformers@3
+          mkdir -p www/lib www/models
+          cp ../index.html www/index.html
+
+      - name: Bundle on-device AI (runs offline in the app)
+        working-directory: app
+        run: |
+          TF=node_modules/@huggingface/transformers/dist
+          ls $TF
+          for f in transformers.min.js transformers.web.min.js transformers.js; do
+            if [ -f "$TF/$f" ]; then cp "$TF/$f" www/lib/transformers.min.js; echo "using $f"; break; fi
+          done
+          ORT=node_modules/@huggingface/transformers/node_modules/onnxruntime-web/dist
+          [ -d "$ORT" ] || ORT=node_modules/onnxruntime-web/dist
+          cp $ORT/ort-wasm*.wasm $ORT/ort-wasm*.mjs www/lib/ 2>/dev/null || true
+          cp $TF/*.wasm www/lib/ 2>/dev/null || true
+          cp $TF/ort-*.mjs www/lib/ 2>/dev/null || true
+          pip install -q huggingface_hub
+          python -c "from huggingface_hub import snapshot_download; snapshot_download('Xenova/clip-vit-base-patch32', allow_patterns=['*.json','onnx/vision_model_quantized.onnx','onnx/text_model_quantized.onnx'], local_dir='www/models/Xenova/clip-vit-base-patch32')"
+          rm -rf www/models/Xenova/clip-vit-base-patch32/.cache
+          ls -la www/lib www/models/Xenova/clip-vit-base-patch32 www/models/Xenova/clip-vit-base-patch32/onnx
+
+      - name: Create Android project
+        working-directory: app
+        run: |
           cat > capacitor.config.json <<'JSON'
           {
             "appId": "com.atelier.stylist",
-            "appName": "Atelier",
+            "appName": "AtelierMS",
             "webDir": "www",
             "android": { "adjustMarginsForEdgeToEdge": "force" }
           }
@@ -45,17 +72,12 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-          cp app/build/outputs/apk/debug/app-debug.apk ../../Atelier.apk
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Atelier-apk
-          path: Atelier.apk
+          cp app/build/outputs/apk/debug/app-debug.apk ../../AtelierMS.apk
+          ls -lh ../../AtelierMS.apk
 
       - name: Publish release (easy phone download)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Atelier build ${{ github.run_number }}
-          files: Atelier.apk
+          name: AtelierMS build ${{ github.run_number }}
+          files: AtelierMS.apk
