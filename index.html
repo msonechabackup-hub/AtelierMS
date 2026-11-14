@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atelier — AI Wardrobe Stylist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f1ea; --paper:#fffdf9; --ink:#1d1a17; --muted:#7a6f64; --line:#e6ddd1;
+  --accent:#b4532a; --accent-soft:#f3e2d7; --ok:#3f6b4f; --shadow:0 1px 2px rgba(40,30,20,.06),0 8px 24px rgba(40,30,20,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:600;margin:0;letter-spacing:-.01em}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 110px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
+header h1{font-size:34px;line-height:1}
+header h1 em{font-style:italic;color:var(--accent);font-weight:400}
+header p{margin:6px 0 0;color:var(--muted);font-size:13.5px}
+.badge{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:4px 10px;white-space:nowrap}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(255,253,249,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;justify-content:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+nav.tabs .in{display:flex;gap:4px;max-width:520px;width:100%}
+nav.tabs button{flex:1;border:0;background:none;padding:8px 4px;border-radius:12px;font:500 12.5px Inter;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button.on{color:var(--ink);background:var(--accent-soft)}
+@media(min-width:760px){nav.tabs{position:sticky;top:0;bottom:auto;border-top:0;border-bottom:1px solid var(--line);background:transparent;padding:0;margin-bottom:22px;backdrop-filter:none}nav.tabs .in{max-width:none;justify-content:flex-start}nav.tabs button{flex:none;flex-direction:row;padding:10px 16px;font-size:14px;border-radius:10px 10px 0 0}nav.tabs button.on{background:none;box-shadow:inset 0 -2px 0 var(--accent)}nav.tabs button svg{width:18px;height:18px}.wrap{padding-bottom:40px}}
+.view{display:none}.view.on{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);margin-bottom:16px}
+.card h2{font-size:21px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(min-width:640px){.grid3{grid-template-columns:repeat(3,1fr)}}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+input,select,textarea{font:15px Inter;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px 12px;width:100%;outline:none;transition:border .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:60px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:99px;padding:3px;background:#fff}
+.seg button{border:0;background:none;padding:6px 14px;border-radius:99px;font:500 13px Inter;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--ink);color:#fff}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:99px;padding:12px 20px;font:600 14.5px Inter;cursor:pointer;background:var(--ink);color:#fff;transition:transform .1s,opacity .15s}
+.btn:active{transform:scale(.98)}
+.btn.accent{background:var(--accent)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.sm{padding:7px 13px;font-size:13px}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.btn.full{width:100%}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+.shape{display:flex;gap:16px;align-items:center;padding:14px;border-radius:14px;background:var(--accent-soft);margin-top:14px}
+.shape svg{flex:none;width:56px;height:84px}
+.shape b{font-family:Fraunces;font-size:20px;font-weight:600;display:block}
+.shape p{margin:2px 0 0;font-size:13.5px;color:#5b4a3e}
+.tips{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+.tips li{font-size:13.5px;padding-left:18px;position:relative}
+.tips li:before{content:"";position:absolute;left:4px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.drop{border:1.5px dashed #cdbfae;border-radius:16px;padding:26px 16px;text-align:center;cursor:pointer;background:#fffaf4;transition:background .15s,border-color .15s}
+.drop.over{background:var(--accent-soft);border-color:var(--accent)}
+.drop svg{width:36px;height:36px;color:var(--accent)}
+.drop b{display:block;font-family:Fraunces;font-size:18px;margin:6px 0 2px}
+.drop span{font-size:13px;color:var(--muted)}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:14px}
+.item{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.item .ph{aspect-ratio:3/4;background:#efe7dc center/cover no-repeat;position:relative}
+.item .ph .st{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,253,249,.7);font-size:12px;font-weight:600;color:var(--muted);gap:6px}
+.item .meta{padding:9px 10px 10px;font-size:12.5px}
+.item .meta b{display:block;font-size:13.5px;line-height:1.25;margin-bottom:5px}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:#f1ebe3;color:#5d5146;display:inline-flex;align-items:center;gap:4px}
+.dot{width:9px;height:9px;border-radius:50%;border:1px solid rgba(0,0,0,.12);display:inline-block}
+.item .x{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(255,255,255,.9);cursor:pointer;font-size:16px;line-height:1;color:var(--ink);z-index:2}
+.filters{display:flex;gap:6px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.filters button{flex:none;border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 12px;font:500 12.5px Inter;color:var(--muted);cursor:pointer}
+.filters button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px}
+.empty b{display:block;font-family:Fraunces;font-size:19px;color:var(--ink);margin-bottom:4px}
+.occ{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(min-width:640px){.occ{grid-template-columns:repeat(6,1fr)}}
+.occ button{border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px 6px;font:500 13px Inter;cursor:pointer;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:4px}
+.occ button span{font-size:22px}
+.occ button.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.look{background:var(--paper);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--shadow);margin-bottom:18px}
+.look .hd{padding:16px 18px 6px;display:flex;align-items:baseline;gap:10px}
+.look .hd .n{font-family:Fraunces;font-style:italic;color:var(--accent);font-size:15px}
+.look .hd h3{font-size:22px}
+.look .vibe{padding:0 18px;color:var(--muted);font-size:13.5px;margin:0}
+.strip{display:flex;gap:10px;overflow-x:auto;padding:14px 18px;scroll-snap-type:x mandatory}
+.strip .pc{flex:none;width:118px;scroll-snap-align:start}
+.strip .pc .ph{aspect-ratio:3/4;border-radius:12px;background:#efe7dc center/cover;border:1px solid var(--line)}
+.strip .pc small{display:block;font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.3}
+.strip .pc.buy .ph{display:flex;align-items:center;justify-content:center;flex-direction:column;background:repeating-linear-gradient(45deg,#fbf6ef,#fbf6ef 8px,#f4ece2 8px,#f4ece2 16px);color:var(--accent);font-size:12px;font-weight:600;text-align:center;padding:8px;gap:4px}
+.why{padding:0 18px 16px;display:grid;gap:10px}
+.why div{font-size:13.5px}
+.why div b{display:block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.score{display:inline-flex;gap:3px;margin-left:auto}
+.score i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.score i.f{background:var(--accent)}
+.notice{background:#fff4e5;border:1px solid #f0d6ae;border-radius:14px;padding:12px 14px;font-size:13.5px;color:#6c4a1c;margin-bottom:14px}
+.spin{width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.progress{height:4px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px}
+.progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.modal{position:fixed;inset:0;background:rgba(29,26,23,.45);z-index:50;display:none;align-items:flex-end;justify-content:center}
+.modal.on{display:flex}
+.modal .sheet{background:var(--paper);width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto}
+@media(min-width:640px){.modal{align-items:center}.modal .sheet{border-radius:22px}}
+.sheet .ph{aspect-ratio:3/4;max-height:44vh;margin:0 auto 14px;border-radius:14px;background:#efe7dc center/contain no-repeat}
+.stream{font-size:13px;color:var(--muted);margin-top:10px;white-space:pre-wrap;max-height:90px;overflow:hidden;mask-image:linear-gradient(transparent,#000 40%)}
+.stat{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:4px}
+.stat b{color:var(--ink);font-size:18px;font-family:Fraunces;display:block}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:99px;font-size:13.5px;opacity:0;transition:.25s;z-index:60;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Atelier<em>.</em></h1>
+      <p>Your wardrobe, styled for your body.</p>
+    </div>
+    <button class="badge" id="aiBadge" style="background:none;cursor:pointer;font:inherit;font-size:11px">AI stylist</button>
+  </header>
+
+  <nav class="tabs"><div class="in">
+    <button data-v="body" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="4.5" r="2.2"/><path d="M8 21l1-8-3-1 2-5h8l2 5-3 1 1 8"/></svg>Body</button>
+    <button data-v="closet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a2 2 0 1 1 2 2c-1 0-2 .6-2 1.5V9M12 9l9 6.5c.8.6.4 1.5-.5 1.5h-17c-.9 0-1.3-.9-.5-1.5L12 9z"/></svg>Wardrobe</button>
+    <button data-v="style"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>Style me</button>
+  </div></nav>
+
+  <!-- BODY -->
+  <section class="view on" id="v-body">
+    <div class="card">
+      <div class="row"><div><h2>Client measurements</h2><p class="sub" style="margin:0">Used to work out body shape and what silhouettes flatter.</p></div><div class="spacer"></div>
+        <div class="seg" id="unitSeg"><button data-u="cm" class="on">cm</button><button data-u="in">in</button></div>
+      </div>
+      <div style="height:14px"></div>
+      <div class="grid2 grid3">
+        <label class="f">Name<input id="m-name" placeholder="Client name"></label>
+        <label class="f">Dresses as
+          <select id="m-fit"><option value="womenswear">Womenswear</option><option value="menswear">Menswear</option><option value="any">Both / unisex</option></select></label>
+        <label class="f">Height <span class="u"></span><input id="m-height" type="number" inputmode="decimal" placeholder="165"></label>
+        <label class="f">Shoulders <span class="u"></span><input id="m-shoulder" type="number" inputmode="decimal" placeholder="Circumference"></label>
+        <label class="f">Bust / Chest <span class="u"></span><input id="m-bust" type="number" inputmode="decimal" placeholder="90"></label>
+        <label class="f">Waist <span class="u"></span><input id="m-waist" type="number" inputmode="decimal" placeholder="72"></label>
+        <label class="f">Hips <span class="u"></span><input id="m-hips" type="number" inputmode="decimal" placeholder="98"></label>
+        <label class="f">Inseam <span class="u"></span><input id="m-inseam" type="number" inputmode="decimal" placeholder="optional"></label>
+        <label class="f">Skin undertone
+          <select id="m-tone"><option value="">Not sure</option><option>Warm</option><option>Cool</option><option>Neutral</option><option>Olive</option></select></label>
+      </div>
+      <div style="height:12px"></div>
+      <label class="f">Style notes<textarea id="m-notes" placeholder="e.g. minimal, loves earthy tones, avoids crop tops, wants to look taller…"></textarea></label>
+      <div id="shapeOut"></div>
+    </div>
+    <button class="btn full" onclick="go('closet')">Next: add wardrobe →</button>
+  </section>
+
+  <!-- CLOSET -->
+  <section class="view" id="v-closet">
+    <div class="card">
+      <h2>Wardrobe</h2>
+      <p class="sub">Upload photos of clothes, shoes and accessories — one item per photo works best. Each is analysed for type, colour, fabric and formality.</p>
+      <div class="drop" id="drop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10.5" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>
+        <b>Tap to add photos</b><span>or drop them here · JPG, PNG, HEIC</span>
+        <input type="file" id="file" accept="image/*" multiple hidden>
+      </div>
+      <div id="anaBox" style="display:none">
+        <div class="row" style="margin-top:12px"><span class="spin"></span><span id="anaTxt" style="font-size:13.5px">Analysing…</span></div>
+        <div class="progress"><i id="anaBar"></i></div>
+      </div>
+      <div class="stat" id="stats"></div>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div class="items" id="items"></div>
+    <div id="closetEmpty" class="empty"><b>Your rail is empty</b>Add a few tops, bottoms and shoes to start.</div>
+    <div style="height:14px"></div>
+    <div class="row"><button class="btn ghost sm" id="demoBtn">Load sample wardrobe</button><div class="spacer"></div><button class="btn sm" onclick="go('style')">Next: style me →</button></div>
+  </section>
+
+  <!-- STYLE -->
+  <section class="view" id="v-style">
+    <div class="card">
+      <h2>What's the occasion?</h2>
+      <p class="sub">Outfits are built only from the uploaded wardrobe, tuned to the client's shape.</p>
+      <div class="occ" id="occ"></div>
+      <div style="height:12px"></div>
+      <div class="grid2">
+        <label class="f">Weather<select id="s-weather"><option>Mild</option><option>Hot</option><option>Cold</option><option>Rainy</option></select></label>
+        <label class="f">How many looks<select id="s-count"><option>3</option><option selected>4</option><option>6</option></select></label>
+      </div>
+      <div style="height:12px"></div>
+      <label class="f">Anything specific?<input id="s-extra" placeholder="e.g. must include the red blazer, want to look slimmer"></label>
+      <div style="height:14px"></div>
+      <button class="btn accent full" id="styleBtn">✦ Create outfits</button>
+      <div class="stream" id="stream"></div>
+    </div>
+    <div id="looks"></div>
+  </section>
+</div>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- state ----------
+const LS='atelier.v1';
+let S={unit:'cm',m:{},items:[],occasion:'Casual',looks:[]};
+let filter='all';
+let sample=null, imgOK=false;
+function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Storage full — older photos may not be remembered')}}
+function load(){try{const v=JSON.parse(localStorage.getItem(LS));if(v)S=Object.assign(S,v)}catch(e){}}
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const uid=()=>Math.random().toString(36).slice(2,9);
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),2600)}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+// ---------- nav ----------
+function go(v){$$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));window.scrollTo({top:0,behavior:'smooth'})}
+$$('nav.tabs button').forEach(b=>b.onclick=()=>go(b.dataset.v));
+
+// ---------- body ----------
+const FIELDS=['name','fit','height','shoulder','bust','waist','hips','inseam','tone','notes'];
+function readM(){FIELDS.forEach(f=>S.m[f]=$('#m-'+f).value);save();renderShape()}
+FIELDS.forEach(f=>{const el=$('#m-'+f);el.addEventListener('input',readM);el.addEventListener('change',readM)});
+$$('#unitSeg button').forEach(b=>b.onclick=()=>{
+  const to=b.dataset.u;if(to===S.unit)return;
+  const k=to==='in'?1/2.54:2.54;
+  ['height','shoulder','bust','waist','hips','inseam'].forEach(f=>{const v=parseFloat(S.m[f]);if(v){S.m[f]=(Math.round(v*k*10)/10).toString();$('#m-'+f).value=S.m[f]}});
+  S.unit=to;save();renderUnit();renderShape()});
+function renderUnit(){$$('#unitSeg button').forEach(b=>b.classList.toggle('on',b.dataset.u===S.unit));$$('.u').forEach(u=>u.textContent='('+S.unit+')')}
+function cm(v){v=parseFloat(v);if(!v)return 0;return S.unit==='in'?v*2.54:v}
+
+function bodyShape(){
+  const B=cm(S.m.bust),W=cm(S.m.waist),H=cm(S.m.hips),Sh=cm(S.m.shoulder),Ht=cm(S.m.height);
+  if(!B||!W||!H)return null;
+  const top=Math.max(B,Sh?Sh*0.93:0);
+  let shape;
+  if(W>=0.9*Math.max(B,H)) shape='Apple';
+  else if(Math.abs(top-H)/H<=0.05 && W<=0.78*Math.min(top,H)) shape='Hourglass';
+  else if(H>top*1.05) shape='Pear';
+  else if(top>H*1.05) shape='Inverted Triangle';
+  else shape='Rectangle';
+  const men=S.m.fit==='menswear';
+  let frame='';if(Ht){if(men)frame=Ht<170?'Shorter frame':Ht>185?'Tall frame':'Average height';else frame=Ht<158?'Petite':Ht>175?'Tall':'Average height'}
+  const legs=(S.m.inseam&&Ht)?(cm(S.m.inseam)/Ht>0.47?'long legs':cm(S.m.inseam)/Ht<0.43?'shorter legs':'balanced proportions'):'';
+  return {shape,frame,legs,ratio:{wh:(W/H).toFixed(2),bh:(top/H).toFixed(2)}};
+}
+const SHAPES={
+  Hourglass:{d:'Bust and hips are balanced with a defined waist.',t:['Highlight the waist — belts, wrap styles, tucked tops','Choose fitted or tailored over boxy','V and sweetheart necklines','Bodycon, pencil and A-line skirts all work'],p:'M18 6h20l-4 22 8 24-6 28H20l-6-28 8-24z'},
+  Pear:{d:'Hips are wider than bust/shoulders — a lower-body-led shape.',t:['Add interest up top: prints, structure, statement necklines','A-line skirts and wide or bootcut trousers','Keep bottoms darker and simpler','Boat necks and puff sleeves broaden the shoulder line'],p:'M21 6h14l-1 22 10 26-4 26H16l-4-26 10-26z'},
+  'Inverted Triangle':{d:'Shoulders/bust are broader than hips.',t:['Volume and detail on the bottom half','V-necks and raglan sleeves soften shoulders','Wide-leg, cargo or pleated trousers; full skirts','Avoid heavy shoulder pads and boat necks'],p:'M12 6h32l-6 24 2 22-4 28H20l-4-28 2-22z'},
+  Rectangle:{d:'Bust, waist and hips are close in width — a straight, athletic line.',t:['Create curves or structure with layering and belts','Peplum, wrap and cropped jackets','Play with texture and colour blocking','Straight and slim cuts look sharp'],p:'M16 6h24l-1 24 1 24-2 26H18l-2-26 1-24z'},
+  Apple:{d:'Fuller through the midsection with slimmer legs.',t:['Draw the eye up — V-necks and open collars','Empire-line, A-line and flowing fabrics','Single-breasted, unbuttoned layers create a long line','Show off legs with slim trousers or knee-length hems'],p:'M18 6h20l2 22 6 22-6 30H16l-6-30 6-22z'}
+};
+function renderShape(){
+  const r=bodyShape(),o=$('#shapeOut');
+  if(!r){o.innerHTML='<p class="sub" style="margin:14px 0 0">Enter bust/chest, waist and hips to see the body shape.</p>';return}
+  const s=SHAPES[r.shape];
+  o.innerHTML=`<div class="shape"><svg viewBox="0 0 56 84"><circle cx="28" cy="3.5" r="0" /><path d="${s.p}" fill="#b4532a" opacity=".85"/></svg><div><b>${r.shape}</b><p>${s.d}${r.frame?' · '+r.frame:''}${r.legs?' · '+r.legs:''}</p></div></div><ul class="tips">${s.t.map(t=>`<li>${t}</li>`).join('')}</ul>`;
+}
+
+// ---------- images ----------
+function shrink(file,max=640,q=.78){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',q))};img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('Could not read image'))};img.src=url})}
+async function dataToBlob(d){return (await fetch(d)).blob()}
+
+const drop=$('#drop'),file=$('#file');
+drop.onclick=()=>file.click();
+file.onchange=()=>{addFiles([...file.files]);file.value=''};
+['dragenter','dragover'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',ev=>addFiles([...ev.dataTransfer.files].filter(f=>f.type.startsWith('image/'))));
+
+async function addFiles(files){
+  if(!files.length)return;
+  const fresh=[];
+  for(const f of files){try{const img=await shrink(f);const it={id:uid(),img,status:'pending'};S.items.unshift(it);fresh.push(it)}catch(e){toast('Skipped a file that could not be read')}}
+  renderItems();save();analyze(fresh);
+}
+
+// ---------- AI analysis ----------
+const CATS=['Top','Bottom','Dress','Outerwear','Shoes','Accessory','Bag','Ethnic'];
+async function analyze(list){
+  list=list.filter(i=>i.status!=='done');
+  if(!list.length)return;
+  if(!sample||!imgOK){list.forEach(i=>{i.status='manual';if(!i.cat){i.cat='Top';i.name='Unlabelled item';i.colors=[]}});renderItems();save();if(!sample)toast('AI is off — tap the badge at the top to add a key, or tap an item to label it');return}
+  $('#anaBox').style.display='block';
+  let done=0;const total=list.length;
+  const upd=()=>{$('#anaTxt').textContent=`Analysing ${Math.min(done+1,total)} of ${total}…`;$('#anaBar').style.width=(done/total*100)+'%'};upd();
+  const chunk=3;
+  for(let i=0;i<list.length;i+=chunk){
+    const part=list.slice(i,i+chunk);
+    part.forEach(p=>p.status='busy');renderItems();
+    try{
+      const blobs=await Promise.all(part.map(p=>dataToBlob(p.img)));
+      const prompt=`You are a professional fashion stylist cataloguing a client's wardrobe. You are given ${part.length} photo(s), in order. For EACH photo identify the single main clothing item (or shoes/accessory).
+Return ONLY a JSON array of ${part.length} objects, in the same order, each:
+{"name": short descriptive name e.g. "Navy linen shirt",
+ "category": one of ${JSON.stringify(CATS)},
+ "subtype": e.g. "button-down shirt","straight jeans","sneakers",
+ "colors": array of 1-3 objects {"name":"navy","hex":"#1f2a44"} main colours first,
+ "pattern": "solid"|"striped"|"checked"|"floral"|"print"|"graphic"|"other",
+ "fabric": best guess,
+ "fit": e.g. "slim","relaxed","oversized","tailored","A-line",
+ "formality": integer 1-5 (1 loungewear, 3 smart casual, 5 black tie),
+ "seasons": array from ["spring","summer","autumn","winter"],
+ "notes": one short sentence on styling potential}
+If a photo shows no clothing, set category "Accessory" and name "Unclear item".`;
+      const out=await sample.json(prompt,{images:blobs,modelTier:'default'});
+      const arr=Array.isArray(out)?out:(out&&out.items)||[];
+      part.forEach((p,k)=>{const a=arr[k]||{};Object.assign(p,{name:a.name||'Item',cat:CATS.includes(a.category)?a.category:'Accessory',subtype:a.subtype||'',colors:(a.colors||[]).slice(0,3),pattern:a.pattern||'',fabric:a.fabric||'',fit:a.fit||'',formality:+a.formality||3,seasons:a.seasons||[],notes:a.notes||'',status:'done'})});
+    }catch(e){
+      part.forEach(p=>{p.status='error'});
+      if(e&&e.code==='not_granted'){sample=null;toast('AI access was declined — label items manually');}
+      else if(e&&e.code==='rate_limited'){toast('Slow down a moment — try again shortly');}
+      else toast('Could not analyse some photos — tap to retry');
+      done+=part.length;renderItems();save();
+      if(!sample||e?.code==='rate_limited')break;
+      continue;
+    }
+    done+=part.length;upd();renderItems();save();
+  }
+  $('#anaBar').style.width='100%';setTimeout(()=>$('#anaBox').style.display='none',500);
+}
+
+// ---------- closet render ----------
+function renderItems(){
+  const counts={};S.items.forEach(i=>{if(i.cat)counts[i.cat]=(counts[i.cat]||0)+1});
+  const fl=['all',...CATS.filter(c=>counts[c])];
+  if(!fl.includes(filter))filter='all';
+  $('#filters').innerHTML=S.items.length?fl.map(c=>`<button class="${c===filter?'on':''}" data-c="${c}">${c==='all'?'All · '+S.items.length:c+' · '+counts[c]}</button>`).join(''):'';
+  $$('#filters button').forEach(b=>b.onclick=()=>{filter=b.dataset.c;renderItems()});
+  const list=S.items.filter(i=>filter==='all'||i.cat===filter);
+  $('#items').innerHTML=list.map(i=>{
+    let st='';
+    if(i.status==='busy'||i.status==='pending')st=`<div class="st"><span class="spin"></span>Analysing</div>`;
+    else if(i.status==='error')st=`<div class="st" style="color:var(--accent)">Tap to retry</div>`;
+    return `<div class="item" data-id="${i.id}"><button class="x" data-del="${i.id}" aria-label="Remove">×</button><div class="ph" style="background-image:url(${i.img})">${st}</div>
+    <div class="meta"><b>${esc(i.name||'…')}</b><div class="chips">${(i.colors||[]).slice(0,2).map(c=>`<span class="chip"><span class="dot" style="background:${esc(c.hex||'#ccc')}"></span>${esc(c.name)}</span>`).join('')}${i.cat?`<span class="chip">${esc(i.cat)}</span>`:''}${i.formality?`<span class="chip">${'●'.repeat(i.formality)}${'○'.repeat(5-i.formality)}</span>`:''}</div></div></div>`}).join('');
+  $('#closetEmpty').style.display=S.items.length?'none':'block';
+  $$('#items .item').forEach(el=>el.onclick=ev=>{
+    const del=ev.target.closest('[data-del]');const it=S.items.find(x=>x.id===el.dataset.id);
+    if(del){S.items=S.items.filter(x=>x.id!==it.id);save();renderItems();return}
+    if(it.status==='error'){analyze([it]);return}
+    if(it.status==='busy'||it.status==='pending')return;
+    openEdit(it)});
+  const t=S.items.filter(i=>i.status==='done'||i.status==='manual');
+  const by=c=>t.filter(i=>i.cat===c).length;
+  $('#stats').innerHTML=t.length?`<div><b>${t.length}</b>pieces</div><div><b>${by('Top')}</b>tops</div><div><b>${by('Bottom')}</b>bottoms</div><div><b>${by('Dress')+by('Ethnic')}</b>dresses/ethnic</div><div><b>${by('Shoes')}</b>shoes</div>`:'';
+}
+function openEdit(it){
+  $('#sheet').innerHTML=`<div class="ph" style="background-image:url(${it.img})"></div>
+  <div class="grid2"><label class="f" style="grid-column:1/-1">Name<input id="e-name" value="${esc(it.name)}"></label>
+  <label class="f">Category<select id="e-cat">${CATS.map(c=>`<option ${c===it.cat?'selected':''}>${c}</option>`).join('')}</select></label>
+  <label class="f">Formality (1–5)<input id="e-form" type="number" min="1" max="5" value="${it.formality||3}"></label>
+  <label class="f">Colour<input id="e-col" value="${esc((it.colors||[]).map(c=>c.name).join(', '))}"></label>
+  <label class="f">Fit<input id="e-fit" value="${esc(it.fit||'')}"></label></div>
+  ${it.notes?`<p class="sub" style="margin:12px 0 0">✦ ${esc(it.notes)}</p>`:''}
+  <div class="row" style="margin-top:16px"><button class="btn ghost" id="e-cancel">Close</button><div class="spacer"></div>${sample&&imgOK?'<button class="btn ghost" id="e-re">Re-analyse</button>':''}<button class="btn" id="e-save">Save</button></div>`;
+  $('#modal').classList.add('on');
+  $('#e-cancel').onclick=closeModal;
+  $('#e-save').onclick=()=>{it.name=$('#e-name').value;it.cat=$('#e-cat').value;it.formality=Math.max(1,Math.min(5,+$('#e-form').value||3));
+    const names=$('#e-col').value.split(',').map(s=>s.trim()).filter(Boolean);it.colors=names.map((n,k)=>({name:n,hex:(it.colors?.[k]?.name===n?it.colors[k].hex:cssColor(n))}));it.fit=$('#e-fit').value;if(it.status!=='done')it.status='manual';save();renderItems();closeModal()};
+  const re=$('#e-re');if(re)re.onclick=()=>{it.status='pending';closeModal();analyze([it])};
+}
+function cssColor(n){const s=new Option().style;s.color=n.toLowerCase();return s.color?n.toLowerCase():'#cccccc'}
+function closeModal(){$('#modal').classList.remove('on')}
+$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
+
+// ---------- demo wardrobe ----------
+function swatchImg(kind,c1,c2){
+  const shapes={
+    tee:`<path d="M60 40l30-14h20l30 14 24 26-22 18-12-10v108H70V74L58 84 36 66z" fill="${c1}"/><path d="M90 26c4 10 16 10 20 0" stroke="${c2}" stroke-width="4" fill="none"/>`,
+    shirt:`<path d="M62 38l28-12 10 14 10-14 28 12 22 70-18 6-10-40v110H68V74l-10 40-18-6z" fill="${c1}"/><path d="M100 40v150" stroke="${c2}" stroke-width="2"/><g fill="${c2}"><circle cx="100" cy="70" r="3"/><circle cx="100" cy="100" r="3"/><circle cx="100" cy="130" r="3"/></g>`,
+    jeans:`<path d="M66 30h68l8 170h-30l-12-120-12 120H58z" fill="${c1}"/><path d="M66 46h68" stroke="${c2}" stroke-width="3"/>`,
+    skirt:`<path d="M72 50h56l28 130H44z" fill="${c1}"/><rect x="72" y="42" width="56" height="12" fill="${c2}"/>`,
+    dress:`<path d="M80 26h40l-4 30 10 30 34 108H40L74 86l10-30z" fill="${c1}"/><path d="M76 92h48" stroke="${c2}" stroke-width="5"/>`,
+    blazer:`<path d="M60 36l30-10 10 60 10-60 30 10 20 160h-24l-4-60v60H68v-60l-4 60H40z" fill="${c1}"/><path d="M90 26l10 60 10-60" stroke="${c2}" stroke-width="3" fill="none"/>`,
+    sneaker:`<path d="M30 130c20 0 40-30 60-30l30 20c20 6 50 6 52 30v14H30z" fill="${c1}"/><rect x="30" y="152" width="142" height="12" rx="4" fill="${c2}"/>`,
+    heel:`<path d="M40 150c30-10 60-50 90-50 14 0 24 16 30 30l-6 10H80l-10 40h-8l4-36z" fill="${c1}"/>`,
+    bag:`<rect x="50" y="80" width="100" height="90" rx="12" fill="${c1}"/><path d="M75 80c0-40 50-40 50 0" stroke="${c2}" stroke-width="6" fill="none"/>`,
+    kurta:`<path d="M66 36l24-10h20l24 10 20 50-16 6-8-22v130H70V70l-8 22-16-6z" fill="${c1}"/><path d="M100 30v50" stroke="${c2}" stroke-width="3"/><path d="M70 170h60" stroke="${c2}" stroke-width="6"/>`
+  };
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240"><rect width="200" height="240" fill="#f3ede4"/>${shapes[kind]}</svg>`;
+  return 'data:image/svg+xml;utf8,'+encodeURIComponent(svg);
+}
+$('#demoBtn').onclick=()=>{
+  const D=[
+    ['tee','#f5f2ea','#cfc6b8','White cotton tee','Top','crew-neck tee',[['white','#f5f2ea']],1,'relaxed'],
+    ['shirt','#a9c3dc','#ffffff','Light blue oxford shirt','Top','button-down',[['light blue','#a9c3dc']],3,'regular'],
+    ['tee','#2b2b2b','#555','Black fitted tee','Top','fitted tee',[['black','#2b2b2b']],2,'slim'],
+    ['jeans','#33507a','#c79a4a','Mid-wash straight jeans','Bottom','straight jeans',[['indigo','#33507a']],2,'straight'],
+    ['jeans','#c8b48f','#8a7553','Beige wide-leg trousers','Bottom','wide-leg trousers',[['beige','#c8b48f']],3,'wide-leg'],
+    ['skirt','#7a2e2a','#4d1c19','Burgundy A-line midi skirt','Bottom','midi skirt',[['burgundy','#7a2e2a']],3,'A-line'],
+    ['dress','#1f2a44','#c8a24a','Navy wrap dress','Dress','wrap dress',[['navy','#1f2a44']],4,'wrap'],
+    ['blazer','#3d3d3d','#222','Charcoal tailored blazer','Outerwear','blazer',[['charcoal','#3d3d3d']],4,'tailored'],
+    ['kurta','#d9a23b','#8a2e1e','Mustard cotton kurta','Ethnic','straight kurta',[['mustard','#d9a23b']],3,'straight'],
+    ['sneaker','#ffffff','#d8d2c8','White leather sneakers','Shoes','sneakers',[['white','#ffffff']],2,''],
+    ['heel','#c49a74','#000','Tan block heels','Shoes','block heels',[['tan','#c49a74']],4,''],
+    ['bag','#6b4a32','#3e2a1c','Brown leather tote','Bag','tote',[['brown','#6b4a32']],3,'']
+  ];
+  D.forEach(d=>S.items.push({id:uid(),img:swatchImg(d[0],d[1],d[2]),name:d[3],cat:d[4],subtype:d[5],colors:d[6].map(([name,hex])=>({name,hex})),formality:d[7],fit:d[8],seasons:['spring','summer','autumn'],pattern:'solid',status:'done',demo:true}));
+  save();renderItems();toast('Sample wardrobe added');
+};
+
+// ---------- styling ----------
+const OCC=[['Casual','☕'],['Work','💼'],['Date','🍷'],['Party','✨'],['Festive','🪔'],['Travel','✈️']];
+function renderOcc(){$('#occ').innerHTML=OCC.map(([n,e])=>`<button class="${n===S.occasion?'on':''}" data-o="${n}"><span>${e}</span>${n}</button>`).join('');$$('#occ button').forEach(b=>b.onclick=()=>{S.occasion=b.dataset.o;save();renderOcc()})}
+
+function profileText(){
+  const r=bodyShape();const m=S.m;const u=S.unit;
+  return `Client: ${m.name||'client'}; dresses in ${m.fit||'womenswear'}.
+Measurements (${u}): height ${m.height||'?'}, shoulders ${m.shoulder||'?'}, bust/chest ${m.bust||'?'}, waist ${m.waist||'?'}, hips ${m.hips||'?'}, inseam ${m.inseam||'?'}.
+Computed body shape: ${r?r.shape+(r.frame?', '+r.frame:'')+(r.legs?', '+r.legs:'')+` (waist/hip ${r.ratio.wh}, top/hip ${r.ratio.bh})`:'unknown — measurements incomplete'}.
+Skin undertone: ${m.tone||'unknown'}. Style notes: ${m.notes||'none'}.`;
+}
+function wardrobeText(items){return items.map(i=>`${i.id} | ${i.cat} | ${i.name}${i.subtype?' ('+i.subtype+')':''} | colours: ${(i.colors||[]).map(c=>c.name).join('/')||'?'} | pattern: ${i.pattern||'?'} | fabric: ${i.fabric||'?'} | fit: ${i.fit||'?'} | formality ${i.formality||'?'}/5 | seasons: ${(i.seasons||[]).join(',')||'?'}`).join('\n')}
+
+$('#styleBtn').onclick=async()=>{
+  const items=S.items.filter(i=>i.status==='done'||i.status==='manual');
+  if(items.length<2){toast('Add at least 2 wardrobe items first');go('closet');return}
+  const btn=$('#styleBtn');btn.disabled=true;btn.innerHTML='<span class="spin"></span> Styling…';
+  const n=+$('#s-count').value;
+  try{
+    let looks;
+    if(sample){
+      const prompt=`You are an expert personal stylist. Build ${n} complete outfits for the client using ONLY items from the wardrobe list (refer to them by their exact id). Each outfit must be wearable and complete (e.g. top+bottom+shoes, or dress+shoes), adding outerwear/bag/accessory when it helps. Do not reuse the exact same combination. Prefer items whose silhouette flatters the client's body shape and proportions; explain why specifically in terms of their measurements/shape. Respect colour harmony and the client's undertone and notes.
+
+${profileText()}
+
+Occasion: ${S.occasion}. Weather: ${$('#s-weather').value}. Extra request: ${$('#s-extra').value||'none'}.
+
+WARDROBE (id | category | name | details):
+${wardrobeText(items)}
+
+Return ONLY JSON: {"looks":[{"title":"evocative 2-4 word name","vibe":"one line mood","item_ids":["id",...],"why_it_flatters":"1-2 sentences tied to body shape","styling_tips":"1-2 sentences: tuck, roll, layer, accessorise","colour_story":"short phrase","match_score":1-5,"missing_piece":"optional single item to buy that would elevate this look, or empty string"}],"wardrobe_gaps":["up to 3 short items worth adding to this wardrobe for this body shape"]}`;
+      $('#stream').textContent='';
+      const res=await sample.json(prompt,{modelTier:'default',onText:({text})=>{$('#stream').textContent=text.slice(-400)}});
+      looks=res;
+    }else{
+      looks=localLooks(items,n);
+    }
+    S.looks=looks;save();renderLooks();
+    setTimeout(()=>$('#looks').scrollIntoView({behavior:'smooth',block:'start'}),100);
+  }catch(e){
+    if(e&&e.code==='not_granted'){sample=null;updateBadge();S.looks=localLooks(items,n);renderLooks();toast('AI declined — showing rule-based outfits')}
+    else if(e&&e.code==='rate_limited')toast('Too many requests — wait a moment and try again');
+    else toast('Something went wrong — please try again');
+  }finally{btn.disabled=false;btn.innerHTML='✦ Create outfits';$('#stream').textContent=''}
+};
+
+// rule-based fallback
+function localLooks(items,n){
+  const occF={Casual:[1,3],Work:[3,5],Date:[3,5],Party:[3,5],Festive:[3,5],Travel:[1,3]}[S.occasion]||[1,5];
+  const ok=i=>!i.formality||(i.formality>=occF[0]-1&&i.formality<=occF[1]+1);
+  const pick=c=>items.filter(i=>i.cat===c&&ok(i));
+  const tops=pick('Top'),bots=pick('Bottom'),dresses=[...pick('Dress'),...pick('Ethnic')],shoes=pick('Shoes'),outer=pick('Outerwear'),bags=pick('Bag');
+  const combos=[];
+  tops.forEach(t=>bots.forEach(b=>combos.push([t,b])));dresses.forEach(d=>combos.push([d]));
+  combos.sort(()=>Math.random()-.5);
+  const r=bodyShape();const tip=r?SHAPES[r.shape].t[0]:'Balance proportions top and bottom.';
+  return {looks:combos.slice(0,n).map((c,k)=>{const ids=c.map(i=>i.id);if(shoes.length)ids.push(shoes[k%shoes.length].id);if(outer.length&&S.occasion==='Work')ids.push(outer[0].id);if(bags.length&&k%2===0)ids.push(bags[0].id);return{title:['Easy Edit','Clean Lines','Weekend Ease','Polished Pair','Soft Contrast','Quiet Luxe'][k%6],vibe:S.occasion+' outfit',item_ids:ids,why_it_flatters:r?`For a ${r.shape.toLowerCase()} shape: ${tip.toLowerCase()}.`:'Add measurements for body-specific advice.',styling_tips:'Tuck the top slightly at the front to define the waist.',colour_story:c.map(i=>i.colors?.[0]?.name).filter(Boolean).join(' + '),match_score:3,missing_piece:''}}),wardrobe_gaps:[],offline:true};
+}
+
+function renderLooks(){
+  const L=S.looks;const box=$('#looks');
+  if(!L||!L.looks||!L.looks.length){box.innerHTML='';return}
+  const byId=Object.fromEntries(S.items.map(i=>[i.id,i]));
+  box.innerHTML=(L.offline?`<div class="notice">AI styling isn't available in this view, so these are rule-based combinations. Open the page on claude.ai for full AI styling.</div>`:'')+
+  `<h2 style="font-size:24px;margin:6px 2px 12px">${esc(S.occasion)} edit <span style="font-style:italic;color:var(--muted);font-weight:400;font-size:16px">for ${esc(S.m.name||'you')}</span></h2>`+
+  L.looks.map((l,k)=>{
+    const pcs=(l.item_ids||[]).map(id=>byId[id]).filter(Boolean);
+    const sc=Math.max(0,Math.min(5,+l.match_score||0));
+    return `<article class="look"><div class="hd"><span class="n">No. ${k+1}</span><h3>${esc(l.title)}</h3><span class="score" title="Match ${sc}/5">${[1,2,3,4,5].map(i=>`<i class="${i<=sc?'f':''}"></i>`).join('')}</span></div>
+    <p class="vibe">${esc(l.vibe||'')}${l.colour_story?' · '+esc(l.colour_story):''}</p>
+    <div class="strip">${pcs.map(p=>`<div class="pc"><div class="ph" style="background-image:url(${p.img})"></div><small>${esc(p.name)}</small></div>`).join('')}${l.missing_piece?`<div class="pc buy"><div class="ph">＋<span>${esc(l.missing_piece)}</span></div><small>Worth adding</small></div>`:''}</div>
+    <div class="why">${l.why_it_flatters?`<div><b>Why it flatters</b>${esc(l.why_it_flatters)}</div>`:''}${l.styling_tips?`<div><b>Styling</b>${esc(l.styling_tips)}</div>`:''}</div></article>`}).join('')+
+  (L.wardrobe_gaps&&L.wardrobe_gaps.length?`<div class="card"><h2>Smart additions</h2><p class="sub">Pieces that would unlock more outfits for this body shape.</p><ul class="tips">${L.wardrobe_gaps.map(g=>`<li>${esc(g)}</li>`).join('')}</ul></div>`:'');
+}
+
+// ---------- AI availability ----------
+let aiMode='none'; // 'claude' | 'api' | 'none'
+const KEY_LS='atelier.apikey';
+function getKey(){try{return localStorage.getItem(KEY_LS)||''}catch(e){return ''}}
+function setKey(k){try{k?localStorage.setItem(KEY_LS,k):localStorage.removeItem(KEY_LS)}catch(e){}}
+function blobToB64(b){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(b)})}
+function parseJSON(t){t=t.trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();try{return JSON.parse(t)}catch(e){const m=t.match(/[\[{][\s\S]*[\]}]/);if(m)return JSON.parse(m[0]);throw {code:'bad_json',message:'Could not read AI reply'}}}
+// Direct Anthropic API adapter, same shape as the page's sample() — used in the Android app
+function makeApiSample(key){
+  async function call(input,opts={}){
+    const content=[];
+    for(const b of (opts.images||[])) content.push({type:'image',source:{type:'base64',media_type:b.type||'image/jpeg',data:await blobToB64(b)}});
+    content.push({type:'text',text:typeof input==='string'?input:input.map(m=>m.content).join('\n')});
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:4096,messages:[{role:'user',content}]})});
+    if(r.status===401||r.status===403)throw {code:'bad_key',message:'API key rejected'};
+    if(r.status===429)throw {code:'rate_limited',message:'Rate limited'};
+    if(!r.ok)throw {code:'http_'+r.status,message:await r.text()};
+    const j=await r.json();const text=(j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+    if(opts.onText)opts.onText({text,delta:text});
+    return {text,truncated:j.stop_reason==='max_tokens'};
+  }
+  const s=(i,o)=>call(i,o);
+  s.json=async(i,o)=>parseJSON((await call(i+'\n\nRespond with JSON only, no prose, no code fences.',o)).text);
+  s.limits=async()=>({images:true});
+  return s;
+}
+function updateBadge(){$('#aiBadge').textContent=sample?(imgOK?'✦ AI stylist on':'✦ AI (no vision)'):'⚙ Offline — add key'}
+async function initAI(){
+  sample=null;imgOK=false;aiMode='none';
+  try{
+    const c=window.claude;
+    if(c&&c.use){sample=await c.use('sample');if(sample){aiMode='claude';try{const lim=await sample.limits();imgOK=!!(lim&&lim.images)}catch(e){imgOK=false}}}
+  }catch(e){sample=null}
+  if(!sample&&getKey()){sample=makeApiSample(getKey());imgOK=true;aiMode='api'}
+  updateBadge();
+}
+$('#aiBadge').onclick=()=>{
+  if(aiMode==='claude'){toast('AI is provided by Claude here — no key needed');return}
+  $('#sheet').innerHTML=`<h2 style="font-size:21px">AI settings</h2>
+  <p class="sub" style="margin-top:6px">To use photo analysis and AI styling in the app, paste an Anthropic API key (from console.anthropic.com). It's stored only on this device and sent only to Anthropic.</p>
+  <label class="f">API key<input id="k-in" type="password" placeholder="sk-ant-…" value="${esc(getKey())}" autocomplete="off"></label>
+  <p class="sub" id="k-msg" style="margin:10px 0 0"></p>
+  <div class="row" style="margin-top:14px"><button class="btn ghost" id="k-clear">Remove</button><div class="spacer"></div><button class="btn ghost" id="k-close">Close</button><button class="btn" id="k-save">Save & test</button></div>`;
+  $('#modal').classList.add('on');
+  $('#k-close').onclick=closeModal;
+  $('#k-clear').onclick=()=>{setKey('');initAI();closeModal();toast('Key removed')};
+  $('#k-save').onclick=async()=>{const k=$('#k-in').value.trim();if(!k)return;$('#k-msg').textContent='Testing…';
+    try{await makeApiSample(k)('Reply with the single word OK.');setKey(k);await initAI();closeModal();toast('AI stylist connected ✦');
+      const pend=S.items.filter(i=>i.status==='error'||(i.status==='manual'&&i.name==='Unlabelled item'));if(pend.length)analyze(pend);
+    }catch(e){$('#k-msg').textContent=e&&e.code==='bad_key'?'That key was rejected — check it and try again.':'Could not reach Anthropic: '+(e.message||e.code||'network error')}};
+};
+
+// ---------- init ----------
+load();
+FIELDS.forEach(f=>{if(S.m[f]!=null)$('#m-'+f).value=S.m[f]});
+S.items.forEach(i=>{if(i.status==='busy'||i.status==='pending')i.status='error'});
+renderUnit();renderShape();renderItems();renderOcc();renderLooks();updateBadge();
+initAI();
+</script>
+</body>
+</html>
