@@ -206,17 +206,20 @@ textarea{resize:vertical;min-height:60px}
 <div class="toast" id="toast"></div>
 
 <script>
-// ---------- state ----------
+// ================= Atelier — on-device stylist =================
 const LS='atelier.v1';
 let S={unit:'cm',m:{},items:[],occasion:'Casual',looks:[]};
 let filter='all';
-let sample=null, imgOK=false;
-function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Storage full — older photos may not be remembered')}}
-function load(){try{const v=JSON.parse(localStorage.getItem(LS));if(v)S=Object.assign(S,v)}catch(e){}}
+let engine='manual';      // 'claude' (inside claude.ai) | 'local' (bundled model in APK) | 'manual'
+let sample=null;
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const uid=()=>Math.random().toString(36).slice(2,9);
-function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),2600)}
+function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Storage full — older photos may not be remembered')}}
+function load(){try{const v=JSON.parse(localStorage.getItem(LS));if(v)S=Object.assign(S,v)}catch(e){}}
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),2800)}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const cap=s=>s?s[0].toUpperCase()+s.slice(1):s;
+const has=(s,...w)=>w.some(x=>(s||'').toLowerCase().includes(x));
 
 // ---------- nav ----------
 function go(v){$$('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));window.scrollTo({top:0,behavior:'smooth'})}
@@ -245,101 +248,204 @@ function bodyShape(){
   else if(top>H*1.05) shape='Inverted Triangle';
   else shape='Rectangle';
   const men=S.m.fit==='menswear';
-  let frame='';if(Ht){if(men)frame=Ht<170?'Shorter frame':Ht>185?'Tall frame':'Average height';else frame=Ht<158?'Petite':Ht>175?'Tall':'Average height'}
-  const legs=(S.m.inseam&&Ht)?(cm(S.m.inseam)/Ht>0.47?'long legs':cm(S.m.inseam)/Ht<0.43?'shorter legs':'balanced proportions'):'';
-  return {shape,frame,legs,ratio:{wh:(W/H).toFixed(2),bh:(top/H).toFixed(2)}};
+  let frame='',height='avg';
+  if(Ht){if(men){frame=Ht<170?'Shorter frame':Ht>185?'Tall frame':'Average height';height=Ht<170?'short':Ht>185?'tall':'avg'}
+         else{frame=Ht<158?'Petite':Ht>175?'Tall':'Average height';height=Ht<158?'short':Ht>175?'tall':'avg'}}
+  let legs='',legsK='';
+  if(S.m.inseam&&Ht){const r=cm(S.m.inseam)/Ht;legsK=r>0.47?'long':r<0.43?'short':'';legs=legsK==='long'?'long legs':legsK==='short'?'shorter legs':'balanced proportions'}
+  return {shape,frame,height,legs,legsK,ratio:{wh:(W/H).toFixed(2),bh:(top/H).toFixed(2)}};
 }
 const SHAPES={
-  Hourglass:{d:'Bust and hips are balanced with a defined waist.',t:['Highlight the waist — belts, wrap styles, tucked tops','Choose fitted or tailored over boxy','V and sweetheart necklines','Bodycon, pencil and A-line skirts all work'],p:'M18 6h20l-4 22 8 24-6 28H20l-6-28 8-24z'},
-  Pear:{d:'Hips are wider than bust/shoulders — a lower-body-led shape.',t:['Add interest up top: prints, structure, statement necklines','A-line skirts and wide or bootcut trousers','Keep bottoms darker and simpler','Boat necks and puff sleeves broaden the shoulder line'],p:'M21 6h14l-1 22 10 26-4 26H16l-4-26 10-26z'},
-  'Inverted Triangle':{d:'Shoulders/bust are broader than hips.',t:['Volume and detail on the bottom half','V-necks and raglan sleeves soften shoulders','Wide-leg, cargo or pleated trousers; full skirts','Avoid heavy shoulder pads and boat necks'],p:'M12 6h32l-6 24 2 22-4 28H20l-4-28 2-22z'},
-  Rectangle:{d:'Bust, waist and hips are close in width — a straight, athletic line.',t:['Create curves or structure with layering and belts','Peplum, wrap and cropped jackets','Play with texture and colour blocking','Straight and slim cuts look sharp'],p:'M16 6h24l-1 24 1 24-2 26H18l-2-26 1-24z'},
-  Apple:{d:'Fuller through the midsection with slimmer legs.',t:['Draw the eye up — V-necks and open collars','Empire-line, A-line and flowing fabrics','Single-breasted, unbuttoned layers create a long line','Show off legs with slim trousers or knee-length hems'],p:'M18 6h20l2 22 6 22-6 30H16l-6-30 6-22z'}
+  Hourglass:{d:'Bust and hips are balanced with a defined waist.',t:['Highlight the waist — belts, wrap styles, tucked tops','Choose fitted or tailored over boxy','V and sweetheart necklines','Bodycon, pencil and A-line skirts all work'],p:'M18 6h20l-4 22 8 24-6 28H20l-6-28 8-24z',gap:'A wrap dress or a belted blazer'},
+  Pear:{d:'Hips are wider than bust/shoulders — a lower-body-led shape.',t:['Add interest up top: prints, structure, statement necklines','A-line skirts and wide or bootcut trousers','Keep bottoms darker and simpler','Boat necks and puff sleeves broaden the shoulder line'],p:'M21 6h14l-1 22 10 26-4 26H16l-4-26 10-26z',gap:'Dark wide-leg trousers or an A-line skirt'},
+  'Inverted Triangle':{d:'Shoulders/bust are broader than hips.',t:['Volume and detail on the bottom half','V-necks and raglan sleeves soften shoulders','Wide-leg, cargo or pleated trousers; full skirts','Avoid heavy shoulder pads and boat necks'],p:'M12 6h32l-6 24 2 22-4 28H20l-4-28 2-22z',gap:'Patterned or light wide-leg trousers'},
+  Rectangle:{d:'Bust, waist and hips are close in width — a straight, athletic line.',t:['Create curves or structure with layering and belts','Peplum, wrap and cropped jackets','Play with texture and colour blocking','Straight and slim cuts look sharp'],p:'M16 6h24l-1 24 1 24-2 26H18l-2-26 1-24z',gap:'A belted trench or a cropped jacket'},
+  Apple:{d:'Fuller through the midsection with slimmer legs.',t:['Draw the eye up — V-necks and open collars','Empire-line, A-line and flowing fabrics','Single-breasted, unbuttoned layers create a long line','Show off legs with slim trousers or knee-length hems'],p:'M18 6h20l2 22 6 22-6 30H16l-6-30 6-22z',gap:'A long open cardigan or unstructured blazer'}
 };
 function renderShape(){
   const r=bodyShape(),o=$('#shapeOut');
   if(!r){o.innerHTML='<p class="sub" style="margin:14px 0 0">Enter bust/chest, waist and hips to see the body shape.</p>';return}
   const s=SHAPES[r.shape];
-  o.innerHTML=`<div class="shape"><svg viewBox="0 0 56 84"><circle cx="28" cy="3.5" r="0" /><path d="${s.p}" fill="#b4532a" opacity=".85"/></svg><div><b>${r.shape}</b><p>${s.d}${r.frame?' · '+r.frame:''}${r.legs?' · '+r.legs:''}</p></div></div><ul class="tips">${s.t.map(t=>`<li>${t}</li>`).join('')}</ul>`;
+  o.innerHTML=`<div class="shape"><svg viewBox="0 0 56 84"><path d="${s.p}" fill="#b4532a" opacity=".85"/></svg><div><b>${r.shape}</b><p>${s.d}${r.frame?' · '+r.frame:''}${r.legs?' · '+r.legs:''}</p></div></div><ul class="tips">${s.t.map(t=>`<li>${t}</li>`).join('')}</ul>`;
+}
+
+// ================= COLOUR (always on-device) =================
+const PALETTE=[['black','#1a1a1a'],['charcoal','#3d3d3d'],['grey','#8a8a8a'],['light grey','#c8c8c8'],['white','#f5f5f5'],['cream','#efe6cf'],['beige','#d6c3a1'],['tan','#c49a6c'],['camel','#b5835a'],['brown','#6b4a32'],['rust','#a0522d'],['burgundy','#7a2030'],['maroon','#5c1a1b'],['red','#c62828'],['coral','#f27a6b'],['pink','#f2a7bb'],['hot pink','#e0408a'],['orange','#e87a2a'],['mustard','#d4a017'],['yellow','#f2d34c'],['olive','#6b6b2f'],['khaki','#a99c6b'],['green','#2e7d32'],['emerald','#1b6b4f'],['mint','#a8dcc2'],['teal','#1f7a7a'],['sky blue','#8ec5e8'],['light blue','#a9c3dc'],['blue','#2a5bd7'],['denim','#4a6b8f'],['navy','#1f2a44'],['lavender','#b8a6d9'],['purple','#6a3d9a'],['plum','#6e2f5b']];
+const NEUTRALS=new Set(['black','charcoal','grey','light grey','white','cream','beige','tan','camel','brown','khaki','navy','denim','olive']);
+const WARM=new Set(['rust','coral','orange','mustard','yellow','olive','camel','tan','brown','red','khaki','cream']);
+const COOL=new Set(['navy','blue','sky blue','light blue','lavender','purple','plum','emerald','teal','pink','hot pink','burgundy','grey','charcoal','mint']);
+function hex2rgb(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return [n>>16&255,n>>8&255,n&255]}
+function rgb2hex(r,g,b){return '#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('')}
+function rgb2lab([r,g,b]){[r,g,b]=[r,g,b].map(v=>{v/=255;return v>0.04045?Math.pow((v+0.055)/1.055,2.4):v/12.92});let x=(r*0.4124+g*0.3576+b*0.1805)/0.95047,y=r*0.2126+g*0.7152+b*0.0722,z=(r*0.0193+g*0.1192+b*0.9505)/1.08883;const f=t=>t>0.008856?Math.cbrt(t):7.787*t+16/116;x=f(x);y=f(y);z=f(z);return [116*y-16,500*(x-y),200*(y-z)]}
+const PAL_LAB=PALETTE.map(([n,h])=>[n,h,rgb2lab(hex2rgb(h))]);
+function nameColor(rgb){const l=rgb2lab(rgb);let best=null,bd=1e9;for(const [n,h,p] of PAL_LAB){const d=(l[0]-p[0])**2+(l[1]-p[1])**2+(l[2]-p[2])**2;if(d<bd){bd=d;best=n}}return best}
+function hsl(hex){let [r,g,b]=hex2rgb(hex).map(v=>v/255);const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,s=0,l=(mx+mn)/2;if(mx!==mn){const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h*=60}return {h,s,l}}
+function isNeutral(c){if(!c)return true;if(NEUTRALS.has(c.name))return true;const {s,l}=hsl(c.hex||'#888');return s<0.15||l<0.12||l>0.93}
+function loadImg(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src})}
+async function extractColors(src){
+  const img=await loadImg(src);const N=72;const c=document.createElement('canvas');const k=N/Math.max(img.width,img.height);
+  c.width=Math.max(1,Math.round(img.width*k));c.height=Math.max(1,Math.round(img.height*k));const x=c.getContext('2d');x.drawImage(img,0,0,c.width,c.height);
+  const d=x.getImageData(0,0,c.width,c.height).data,W=c.width,H=c.height;
+  // background = median of border pixels
+  const border=[];for(let i=0;i<W;i++){border.push(i*4,((H-1)*W+i)*4)}for(let j=0;j<H;j++){border.push(j*W*4,(j*W+W-1)*4)}
+  const med=ch=>{const a=border.map(p=>d[p+ch]).sort((a,b)=>a-b);return a[a.length>>1]};const bg=[med(0),med(1),med(2)];
+  let px=[];
+  for(let j=0;j<H;j++)for(let i=0;i<W;i++){const p=(j*W+i)*4;if(d[p+3]<128)continue;const r=d[p],g=d[p+1],b=d[p+2];const dist=Math.abs(r-bg[0])+Math.abs(g-bg[1])+Math.abs(b-bg[2]);if(dist>60)px.push([r,g,b])}
+  if(px.length<W*H*0.08){px=[];for(let j=H*0.25|0;j<H*0.75;j++)for(let i=W*0.25|0;i<W*0.75;i++){const p=(j*W+i)*4;px.push([d[p],d[p+1],d[p+2]])}}
+  if(!px.length)return [];
+  // k-means, k=3
+  let C=[px[0],px[px.length>>1],px[px.length-1]].map(a=>a.slice());let lab=new Array(px.length).fill(0);
+  for(let it=0;it<10;it++){
+    for(let q=0;q<px.length;q++){let bi=0,bd=1e9;for(let k2=0;k2<C.length;k2++){const dd=(px[q][0]-C[k2][0])**2+(px[q][1]-C[k2][1])**2+(px[q][2]-C[k2][2])**2;if(dd<bd){bd=dd;bi=k2}}lab[q]=bi}
+    const sum=C.map(()=>[0,0,0,0]);px.forEach((p,q)=>{const s=sum[lab[q]];s[0]+=p[0];s[1]+=p[1];s[2]+=p[2];s[3]++});
+    C=sum.map((s,k2)=>s[3]?[s[0]/s[3],s[1]/s[3],s[2]/s[3]]:C[k2]);
+  }
+  const cnt=C.map(()=>0);lab.forEach(l=>cnt[l]++);
+  const out=[];C.map((c,k2)=>({c,n:cnt[k2]/px.length})).sort((a,b)=>b.n-a.n).forEach(({c,n})=>{if(n<0.12)return;const name=nameColor(c);if(!out.find(o=>o.name===name))out.push({name,hex:rgb2hex(...c),share:+n.toFixed(2)})});
+  return out.slice(0,3);
+}
+
+// ================= ON-DEVICE VISION (CLIP bundled in the APK) =================
+const MODEL_ID='Xenova/clip-vit-base-patch32';
+const TYPES=[
+ ['a t-shirt','Top','t-shirt',1],['a polo shirt','Top','polo shirt',2],['a formal button-up shirt','Top','shirt',3],['a blouse','Top','blouse',3],
+ ['a crop top','Top','crop top',1],['a tank top','Top','tank top',1],['a knit sweater','Top','sweater',2],['a hoodie','Top','hoodie',1],
+ ['a pair of blue jeans','Bottom','jeans',2],['a pair of formal trousers','Bottom','trousers',3],['a pair of shorts','Bottom','shorts',1],['a skirt','Bottom','skirt',3],['a pair of track pants','Bottom','joggers',1],
+ ['a dress','Dress','dress',3],['a long evening gown','Dress','gown',5],
+ ['a casual jacket','Outerwear','jacket',2],['a tailored blazer','Outerwear','blazer',4],['a long coat','Outerwear','coat',3],
+ ['an indian kurta','Ethnic','kurta',3],['a saree','Ethnic','saree',4],['a lehenga','Ethnic','lehenga',5],['a sherwani','Ethnic','sherwani',5],
+ ['a pair of sneakers','Shoes','sneakers',1],['a pair of formal leather shoes','Shoes','formal shoes',4],['a pair of high heels','Shoes','heels',4],['a pair of sandals','Shoes','sandals',2],['a pair of boots','Shoes','boots',3],
+ ['a handbag','Bag','handbag',3],['a backpack','Bag','backpack',1],
+ ['a wrist watch','Accessory','watch',3],['a leather belt','Accessory','belt',3],['a pair of sunglasses','Accessory','sunglasses',2],['jewellery','Accessory','jewellery',4]
+];
+const PATTERNS=[['plain solid colour fabric','solid'],['striped fabric','striped'],['checked plaid fabric','checked'],['floral print fabric','floral'],['fabric with a printed pattern','print'],['a graphic print with text or a logo','graphic']];
+const TOPFIT=[['a tight fitted top','fitted'],['an oversized loose top','oversized'],['a cropped short top','cropped'],['a regular fit top','regular'],['a wrap style top','wrap']];
+const BOTFIT=[['skinny tight pants','skinny'],['straight leg pants','straight'],['wide leg pants','wide-leg'],['an a-line skirt','A-line'],['a pencil skirt','pencil'],['flared bootcut pants','flared']];
+const DRESSFIT=[['a bodycon dress','bodycon'],['a wrap dress','wrap'],['an a-line dress','A-line'],['a shift dress','shift'],['a maxi dress','maxi']];
+const GROUPS={type:TYPES.map(t=>'a photo of '+t[0]),pattern:PATTERNS.map(t=>'a photo of clothing made of '+t[0]),top:TOPFIT.map(t=>'a photo of '+t[0]),bottom:BOTFIT.map(t=>'a photo of '+t[0]),dress:DRESSFIT.map(t=>'a photo of '+t[0])};
+
+let V=null; // {T, processor, vision, text:{group:[emb...]}}
+let vLoading=null;
+const TE_LS='atelier.textemb.v2';
+const norm=a=>{let s=0;for(const v of a)s+=v*v;s=Math.sqrt(s)||1;return a.map(v=>v/s)};
+async function localAvailable(){try{const r=await fetch('./models/'+MODEL_ID+'/config.json');return r.ok}catch(e){return false}}
+function loadVision(onStatus){
+  if(V)return Promise.resolve(V);
+  if(vLoading)return vLoading;
+  vLoading=(async()=>{
+    onStatus&&onStatus('Waking up on-device AI (first time takes ~20s)…');
+    const T=await import('./lib/transformers.min.js');
+    T.env.allowRemoteModels=false;T.env.allowLocalModels=true;T.env.localModelPath='./models/';
+    try{T.env.backends.onnx.wasm.wasmPaths='./lib/';T.env.backends.onnx.wasm.numThreads=1;T.env.backends.onnx.wasm.proxy=false}catch(e){}
+    const opt={dtype:'q8',device:'wasm'};
+    const processor=await T.AutoProcessor.from_pretrained(MODEL_ID);
+    const vision=await T.CLIPVisionModelWithProjection.from_pretrained(MODEL_ID,opt);
+    let text=null;try{text=JSON.parse(localStorage.getItem(TE_LS))}catch(e){}
+    if(!text||Object.keys(GROUPS).some(g=>!text[g]||text[g].length!==GROUPS[g].length)){
+      onStatus&&onStatus('Learning clothing types (one-time)…');
+      const tok=await T.AutoTokenizer.from_pretrained(MODEL_ID);
+      const tm=await T.CLIPTextModelWithProjection.from_pretrained(MODEL_ID,opt);
+      text={};
+      for(const g of Object.keys(GROUPS)){
+        const inp=tok(GROUPS[g],{padding:true,truncation:true});
+        const {text_embeds}=await tm(inp);const dim=text_embeds.dims[1];const data=text_embeds.data;
+        text[g]=GROUPS[g].map((_,i)=>norm(Array.from(data.slice(i*dim,(i+1)*dim))).map(v=>+v.toFixed(5)));
+      }
+      try{await tm.dispose()}catch(e){}
+      try{localStorage.setItem(TE_LS,JSON.stringify(text))}catch(e){}
+    }
+    V={T,processor,vision,text};return V;
+  })();
+  vLoading.catch(()=>{vLoading=null});
+  return vLoading;
+}
+function rank(img,g){const sims=V.text[g].map(t=>t.reduce((s,v,i)=>s+v*img[i],0)*100);const mx=Math.max(...sims);const ex=sims.map(s=>Math.exp(s-mx));const z=ex.reduce((a,b)=>a+b,0);const p=ex.map(e=>e/z);let bi=0;p.forEach((v,i)=>{if(v>p[bi])bi=i});return {i:bi,p:p[bi]}}
+async function classifyLocal(it){
+  const blob=await (await fetch(it.img)).blob();
+  const image=await V.T.RawImage.fromBlob(blob);
+  const inputs=await V.processor(image);
+  const {image_embeds}=await V.vision(inputs);
+  const emb=norm(Array.from(image_embeds.data));
+  const t=TYPES[rank(emb,'type').i];
+  const pat=PATTERNS[rank(emb,'pattern').i][1];
+  let fit='';
+  if(t[1]==='Top')fit=TOPFIT[rank(emb,'top').i][1];
+  else if(t[1]==='Bottom')fit=BOTFIT[rank(emb,'bottom').i][1];
+  else if(t[1]==='Dress')fit=DRESSFIT[rank(emb,'dress').i][1];
+  if(t[2]==='skirt'&&!['A-line','pencil','flared'].includes(fit))fit='A-line';
+  if(t[1]==='Bottom'&&t[2]!=='skirt'&&['A-line','pencil'].includes(fit))fit='straight';
+  return {cat:t[1],subtype:t[2],formality:t[3],pattern:pat,fit};
+}
+function seasonsFor(sub){if(has(sub,'sweater','hoodie','coat','boots'))return ['autumn','winter'];if(has(sub,'shorts','tank','sandals','crop'))return ['spring','summer'];return ['spring','summer','autumn','winter']}
+function describe(it){
+  const col=it.colors?.[0]?.name||'';const pat=it.pattern&&it.pattern!=='solid'?it.pattern+' ':'';
+  it.name=cap(`${col} ${pat}${it.subtype||it.cat||'item'}`.trim());
+  it.seasons=seasonsFor(it.subtype);
+  const neutral=isNeutral(it.colors?.[0]);
+  it.notes=neutral?`A versatile ${col||'neutral'} base — pairs with almost anything.`:`A ${col} statement piece — pair it with neutrals so it stands out.`;
 }
 
 // ---------- images ----------
-function shrink(file,max=640,q=.78){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',q))};img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('Could not read image'))};img.src=url})}
+function shrink(file,max=640,q=.8){return new Promise((res,rej)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',q))};img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('Could not read image'))};img.src=url})}
 async function dataToBlob(d){return (await fetch(d)).blob()}
-
 const drop=$('#drop'),file=$('#file');
 drop.onclick=()=>file.click();
 file.onchange=()=>{addFiles([...file.files]);file.value=''};
 ['dragenter','dragover'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('over')}));
 ['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('over')}));
 drop.addEventListener('drop',ev=>addFiles([...ev.dataTransfer.files].filter(f=>f.type.startsWith('image/'))));
-
 async function addFiles(files){
-  if(!files.length)return;
-  const fresh=[];
+  if(!files.length)return;const fresh=[];
   for(const f of files){try{const img=await shrink(f);const it={id:uid(),img,status:'pending'};S.items.unshift(it);fresh.push(it)}catch(e){toast('Skipped a file that could not be read')}}
   renderItems();save();analyze(fresh);
 }
 
-// ---------- AI analysis ----------
+// ================= ANALYSIS =================
 const CATS=['Top','Bottom','Dress','Outerwear','Shoes','Accessory','Bag','Ethnic'];
+let busy=false;const queue=[];
 async function analyze(list){
-  list=list.filter(i=>i.status!=='done');
-  if(!list.length)return;
-  if(!sample||!imgOK){list.forEach(i=>{i.status='manual';if(!i.cat){i.cat='Top';i.name='Unlabelled item';i.colors=[]}});renderItems();save();if(!sample)toast('AI is off — tap the badge at the top to add a key, or tap an item to label it');return}
+  queue.push(...list.filter(i=>i.status!=='done'));
+  if(busy)return;busy=true;
   $('#anaBox').style.display='block';
-  let done=0;const total=list.length;
-  const upd=()=>{$('#anaTxt').textContent=`Analysing ${Math.min(done+1,total)} of ${total}…`;$('#anaBar').style.width=(done/total*100)+'%'};upd();
-  const chunk=3;
-  for(let i=0;i<list.length;i+=chunk){
-    const part=list.slice(i,i+chunk);
-    part.forEach(p=>p.status='busy');renderItems();
-    try{
-      const blobs=await Promise.all(part.map(p=>dataToBlob(p.img)));
-      const prompt=`You are a professional fashion stylist cataloguing a client's wardrobe. You are given ${part.length} photo(s), in order. For EACH photo identify the single main clothing item (or shoes/accessory).
-Return ONLY a JSON array of ${part.length} objects, in the same order, each:
-{"name": short descriptive name e.g. "Navy linen shirt",
- "category": one of ${JSON.stringify(CATS)},
- "subtype": e.g. "button-down shirt","straight jeans","sneakers",
- "colors": array of 1-3 objects {"name":"navy","hex":"#1f2a44"} main colours first,
- "pattern": "solid"|"striped"|"checked"|"floral"|"print"|"graphic"|"other",
- "fabric": best guess,
- "fit": e.g. "slim","relaxed","oversized","tailored","A-line",
- "formality": integer 1-5 (1 loungewear, 3 smart casual, 5 black tie),
- "seasons": array from ["spring","summer","autumn","winter"],
- "notes": one short sentence on styling potential}
-If a photo shows no clothing, set category "Accessory" and name "Unclear item".`;
-      const out=await sample.json(prompt,{images:blobs,modelTier:'default'});
-      const arr=Array.isArray(out)?out:(out&&out.items)||[];
-      part.forEach((p,k)=>{const a=arr[k]||{};Object.assign(p,{name:a.name||'Item',cat:CATS.includes(a.category)?a.category:'Accessory',subtype:a.subtype||'',colors:(a.colors||[]).slice(0,3),pattern:a.pattern||'',fabric:a.fabric||'',fit:a.fit||'',formality:+a.formality||3,seasons:a.seasons||[],notes:a.notes||'',status:'done'})});
-    }catch(e){
-      part.forEach(p=>{p.status='error'});
-      if(e&&e.code==='not_granted'){sample=null;toast('AI access was declined — label items manually');}
-      else if(e&&e.code==='rate_limited'){toast('Slow down a moment — try again shortly');}
-      else toast('Could not analyse some photos — tap to retry');
-      done+=part.length;renderItems();save();
-      if(!sample||e?.code==='rate_limited')break;
-      continue;
+  let done=0;
+  const upd=(t)=>{const total=done+queue.length;$('#anaTxt').textContent=t||`Analysing ${Math.min(done+1,total)} of ${total}…`;$('#anaBar').style.width=(total?done/total*100:0)+'%'};
+  try{
+    if(engine==='local'){try{await loadVision(t=>upd(t))}catch(e){console.error(e);engine='manual';updateBadge();toast('On-device AI could not start — switching to manual tagging')}}
+    while(queue.length){
+      const it=queue.shift();if(!S.items.includes(it))continue;
+      upd();it.status='busy';renderItems();
+      try{
+        it.colors=await extractColors(it.img);
+        if(engine==='local'){Object.assign(it,await classifyLocal(it));describe(it);it.status='done'}
+        else if(engine==='claude'){await analyzeClaude(it);it.status='done'}
+        else{it.cat=it.cat||'Top';it.subtype=it.subtype||'';it.formality=it.formality||3;describe(it);it.name=cap((it.colors?.[0]?.name||'')+' item');it.status='manual'}
+      }catch(e){console.error(e);it.status='error';if(e&&e.code==='not_granted'){engine=await localAvailable()?'local':'manual';updateBadge()}}
+      done++;renderItems();save();
     }
-    done+=part.length;upd();renderItems();save();
+  }finally{
+    busy=false;$('#anaBar').style.width='100%';setTimeout(()=>$('#anaBox').style.display='none',500);
+    if(engine==='manual'&&S.items.some(i=>i.status==='manual'&&i.name.endsWith(' item')))toast('Tap each item to set its type');
   }
-  $('#anaBar').style.width='100%';setTimeout(()=>$('#anaBox').style.display='none',500);
+}
+async function analyzeClaude(it){
+  const blob=await dataToBlob(it.img);
+  const a=await sample.json(`You are a fashion stylist cataloguing a wardrobe photo. Identify the main item. Return ONLY JSON: {"name":"short name e.g. Navy linen shirt","category":one of ${JSON.stringify(CATS)},"subtype":"e.g. shirt, jeans, sneakers, kurta","pattern":"solid|striped|checked|floral|print|graphic","fit":"e.g. fitted, oversized, straight, wide-leg, A-line, wrap","formality":1-5,"seasons":["spring","summer","autumn","winter"],"notes":"one short styling sentence"}`,{images:[blob],modelTier:'default'});
+  Object.assign(it,{name:a.name||'Item',cat:CATS.includes(a.category)?a.category:'Accessory',subtype:(a.subtype||'').toLowerCase(),pattern:a.pattern||'solid',fit:a.fit||'',formality:+a.formality||3,seasons:a.seasons||[],notes:a.notes||''});
 }
 
 // ---------- closet render ----------
 function renderItems(){
   const counts={};S.items.forEach(i=>{if(i.cat)counts[i.cat]=(counts[i.cat]||0)+1});
-  const fl=['all',...CATS.filter(c=>counts[c])];
-  if(!fl.includes(filter))filter='all';
+  const fl=['all',...CATS.filter(c=>counts[c])];if(!fl.includes(filter))filter='all';
   $('#filters').innerHTML=S.items.length?fl.map(c=>`<button class="${c===filter?'on':''}" data-c="${c}">${c==='all'?'All · '+S.items.length:c+' · '+counts[c]}</button>`).join(''):'';
   $$('#filters button').forEach(b=>b.onclick=()=>{filter=b.dataset.c;renderItems()});
   const list=S.items.filter(i=>filter==='all'||i.cat===filter);
   $('#items').innerHTML=list.map(i=>{
     let st='';
-    if(i.status==='busy'||i.status==='pending')st=`<div class="st"><span class="spin"></span>Analysing</div>`;
+    if(i.status==='busy'||i.status==='pending')st=`<div class="st"><span class="spin"></span>${i.status==='busy'?'Analysing':'Queued'}</div>`;
     else if(i.status==='error')st=`<div class="st" style="color:var(--accent)">Tap to retry</div>`;
     return `<div class="item" data-id="${i.id}"><button class="x" data-del="${i.id}" aria-label="Remove">×</button><div class="ph" style="background-image:url(${i.img})">${st}</div>
-    <div class="meta"><b>${esc(i.name||'…')}</b><div class="chips">${(i.colors||[]).slice(0,2).map(c=>`<span class="chip"><span class="dot" style="background:${esc(c.hex||'#ccc')}"></span>${esc(c.name)}</span>`).join('')}${i.cat?`<span class="chip">${esc(i.cat)}</span>`:''}${i.formality?`<span class="chip">${'●'.repeat(i.formality)}${'○'.repeat(5-i.formality)}</span>`:''}</div></div></div>`}).join('');
+    <div class="meta"><b>${esc(i.name||'…')}</b><div class="chips">${(i.colors||[]).slice(0,2).map(c=>`<span class="chip"><span class="dot" style="background:${esc(c.hex||'#ccc')}"></span>${esc(c.name)}</span>`).join('')}${i.cat?`<span class="chip">${esc(i.cat)}</span>`:''}${i.fit?`<span class="chip">${esc(i.fit)}</span>`:''}</div></div></div>`}).join('');
   $('#closetEmpty').style.display=S.items.length?'none':'block';
   $$('#items .item').forEach(el=>el.onclick=ev=>{
     const del=ev.target.closest('[data-del]');const it=S.items.find(x=>x.id===el.dataset.id);
@@ -347,26 +453,36 @@ function renderItems(){
     if(it.status==='error'){analyze([it]);return}
     if(it.status==='busy'||it.status==='pending')return;
     openEdit(it)});
-  const t=S.items.filter(i=>i.status==='done'||i.status==='manual');
-  const by=c=>t.filter(i=>i.cat===c).length;
+  const t=S.items.filter(i=>i.status==='done'||i.status==='manual');const by=c=>t.filter(i=>i.cat===c).length;
   $('#stats').innerHTML=t.length?`<div><b>${t.length}</b>pieces</div><div><b>${by('Top')}</b>tops</div><div><b>${by('Bottom')}</b>bottoms</div><div><b>${by('Dress')+by('Ethnic')}</b>dresses/ethnic</div><div><b>${by('Shoes')}</b>shoes</div>`:'';
 }
+const SUBS={Top:['t-shirt','polo shirt','shirt','blouse','crop top','tank top','sweater','hoodie'],Bottom:['jeans','trousers','shorts','skirt','joggers'],Dress:['dress','gown'],Outerwear:['jacket','blazer','coat','cardigan'],Shoes:['sneakers','formal shoes','heels','sandals','boots','loafers'],Bag:['handbag','tote','backpack','clutch'],Accessory:['watch','belt','sunglasses','jewellery','scarf'],Ethnic:['kurta','saree','lehenga','sherwani','salwar suit']};
+const FITS=['','fitted','regular','oversized','cropped','wrap','skinny','straight','wide-leg','A-line','pencil','flared','bodycon','shift','maxi','tailored'];
 function openEdit(it){
+  const subOpts=c=>[...new Set([...(SUBS[c]||[]),...(it.subtype&&c===it.cat?[it.subtype]:[])])].map(s=>`<option ${s===it.subtype?'selected':''}>${s}</option>`).join('');
   $('#sheet').innerHTML=`<div class="ph" style="background-image:url(${it.img})"></div>
   <div class="grid2"><label class="f" style="grid-column:1/-1">Name<input id="e-name" value="${esc(it.name)}"></label>
   <label class="f">Category<select id="e-cat">${CATS.map(c=>`<option ${c===it.cat?'selected':''}>${c}</option>`).join('')}</select></label>
+  <label class="f">Type<select id="e-sub">${subOpts(it.cat)}</select></label>
+  <label class="f">Fit<select id="e-fit">${FITS.map(f=>`<option value="${f}" ${f===(it.fit||'')?'selected':''}>${f||'—'}</option>`).join('')}</select></label>
+  <label class="f">Pattern<select id="e-pat">${['solid','striped','checked','floral','print','graphic'].map(p=>`<option ${p===(it.pattern||'solid')?'selected':''}>${p}</option>`).join('')}</select></label>
   <label class="f">Formality (1–5)<input id="e-form" type="number" min="1" max="5" value="${it.formality||3}"></label>
-  <label class="f">Colour<input id="e-col" value="${esc((it.colors||[]).map(c=>c.name).join(', '))}"></label>
-  <label class="f">Fit<input id="e-fit" value="${esc(it.fit||'')}"></label></div>
+  <label class="f">Main colour<select id="e-col">${PALETTE.map(([n])=>`<option ${n===it.colors?.[0]?.name?'selected':''}>${n}</option>`).join('')}</select></label></div>
   ${it.notes?`<p class="sub" style="margin:12px 0 0">✦ ${esc(it.notes)}</p>`:''}
-  <div class="row" style="margin-top:16px"><button class="btn ghost" id="e-cancel">Close</button><div class="spacer"></div>${sample&&imgOK?'<button class="btn ghost" id="e-re">Re-analyse</button>':''}<button class="btn" id="e-save">Save</button></div>`;
+  <div class="row" style="margin-top:16px"><button class="btn ghost" id="e-cancel">Close</button><div class="spacer"></div><button class="btn" id="e-save">Save</button></div>`;
   $('#modal').classList.add('on');
+  $('#e-cat').onchange=()=>{$('#e-sub').innerHTML=(SUBS[$('#e-cat').value]||[]).map(s=>`<option>${s}</option>`).join('')};
   $('#e-cancel').onclick=closeModal;
-  $('#e-save').onclick=()=>{it.name=$('#e-name').value;it.cat=$('#e-cat').value;it.formality=Math.max(1,Math.min(5,+$('#e-form').value||3));
-    const names=$('#e-col').value.split(',').map(s=>s.trim()).filter(Boolean);it.colors=names.map((n,k)=>({name:n,hex:(it.colors?.[k]?.name===n?it.colors[k].hex:cssColor(n))}));it.fit=$('#e-fit').value;if(it.status!=='done')it.status='manual';save();renderItems();closeModal()};
-  const re=$('#e-re');if(re)re.onclick=()=>{it.status='pending';closeModal();analyze([it])};
+  $('#e-save').onclick=()=>{
+    const oldAuto=it.name&&(it.name.endsWith(' item')||it.name===describeName(it));
+    it.cat=$('#e-cat').value;it.subtype=$('#e-sub').value;it.fit=$('#e-fit').value;it.pattern=$('#e-pat').value;
+    it.formality=Math.max(1,Math.min(5,+$('#e-form').value||3));
+    const cn=$('#e-col').value;const rest=(it.colors||[]).filter(c=>c.name!==cn);it.colors=[{name:cn,hex:(PALETTE.find(p=>p[0]===cn)||[,'#ccc'])[1]},...rest].slice(0,3);
+    const typed=$('#e-name').value.trim();
+    if(oldAuto&&typed===it.name){describe(it)}else{it.name=typed||it.name;it.seasons=seasonsFor(it.subtype)}
+    if(it.status!=='done')it.status='done';save();renderItems();closeModal()};
 }
-function cssColor(n){const s=new Option().style;s.color=n.toLowerCase();return s.color?n.toLowerCase():'#cccccc'}
+function describeName(it){const col=it.colors?.[0]?.name||'';const pat=it.pattern&&it.pattern!=='solid'?it.pattern+' ':'';return cap(`${col} ${pat}${it.subtype||it.cat||'item'}`.trim())}
 function closeModal(){$('#modal').classList.remove('on')}
 $('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
 
@@ -384,40 +500,166 @@ function swatchImg(kind,c1,c2){
     bag:`<rect x="50" y="80" width="100" height="90" rx="12" fill="${c1}"/><path d="M75 80c0-40 50-40 50 0" stroke="${c2}" stroke-width="6" fill="none"/>`,
     kurta:`<path d="M66 36l24-10h20l24 10 20 50-16 6-8-22v130H70V70l-8 22-16-6z" fill="${c1}"/><path d="M100 30v50" stroke="${c2}" stroke-width="3"/><path d="M70 170h60" stroke="${c2}" stroke-width="6"/>`
   };
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240"><rect width="200" height="240" fill="#f3ede4"/>${shapes[kind]}</svg>`;
-  return 'data:image/svg+xml;utf8,'+encodeURIComponent(svg);
+  return 'data:image/svg+xml;utf8,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240"><rect width="200" height="240" fill="#f3ede4"/>${shapes[kind]}</svg>`);
 }
 $('#demoBtn').onclick=()=>{
-  const D=[
-    ['tee','#f5f2ea','#cfc6b8','White cotton tee','Top','crew-neck tee',[['white','#f5f2ea']],1,'relaxed'],
-    ['shirt','#a9c3dc','#ffffff','Light blue oxford shirt','Top','button-down',[['light blue','#a9c3dc']],3,'regular'],
-    ['tee','#2b2b2b','#555','Black fitted tee','Top','fitted tee',[['black','#2b2b2b']],2,'slim'],
-    ['jeans','#33507a','#c79a4a','Mid-wash straight jeans','Bottom','straight jeans',[['indigo','#33507a']],2,'straight'],
-    ['jeans','#c8b48f','#8a7553','Beige wide-leg trousers','Bottom','wide-leg trousers',[['beige','#c8b48f']],3,'wide-leg'],
-    ['skirt','#7a2e2a','#4d1c19','Burgundy A-line midi skirt','Bottom','midi skirt',[['burgundy','#7a2e2a']],3,'A-line'],
-    ['dress','#1f2a44','#c8a24a','Navy wrap dress','Dress','wrap dress',[['navy','#1f2a44']],4,'wrap'],
-    ['blazer','#3d3d3d','#222','Charcoal tailored blazer','Outerwear','blazer',[['charcoal','#3d3d3d']],4,'tailored'],
-    ['kurta','#d9a23b','#8a2e1e','Mustard cotton kurta','Ethnic','straight kurta',[['mustard','#d9a23b']],3,'straight'],
-    ['sneaker','#ffffff','#d8d2c8','White leather sneakers','Shoes','sneakers',[['white','#ffffff']],2,''],
-    ['heel','#c49a74','#000','Tan block heels','Shoes','block heels',[['tan','#c49a74']],4,''],
-    ['bag','#6b4a32','#3e2a1c','Brown leather tote','Bag','tote',[['brown','#6b4a32']],3,'']
-  ];
-  D.forEach(d=>S.items.push({id:uid(),img:swatchImg(d[0],d[1],d[2]),name:d[3],cat:d[4],subtype:d[5],colors:d[6].map(([name,hex])=>({name,hex})),formality:d[7],fit:d[8],seasons:['spring','summer','autumn'],pattern:'solid',status:'done',demo:true}));
+  const D=[['tee','#f5f2ea','#cfc6b8','White cotton tee','Top','t-shirt','white','#f5f5f5',1,'regular'],['shirt','#a9c3dc','#ffffff','Light blue oxford shirt','Top','shirt','light blue','#a9c3dc',3,'regular'],['tee','#2b2b2b','#555','Black fitted tee','Top','t-shirt','black','#1a1a1a',2,'fitted'],['jeans','#33507a','#c79a4a','Mid-wash straight jeans','Bottom','jeans','denim','#4a6b8f',2,'straight'],['jeans','#c8b48f','#8a7553','Beige wide-leg trousers','Bottom','trousers','beige','#d6c3a1',3,'wide-leg'],['skirt','#7a2e2a','#4d1c19','Burgundy A-line midi skirt','Bottom','skirt','burgundy','#7a2030',3,'A-line'],['dress','#1f2a44','#c8a24a','Navy wrap dress','Dress','dress','navy','#1f2a44',4,'wrap'],['blazer','#3d3d3d','#222','Charcoal tailored blazer','Outerwear','blazer','charcoal','#3d3d3d',4,'tailored'],['kurta','#d9a23b','#8a2e1e','Mustard cotton kurta','Ethnic','kurta','mustard','#d4a017',3,'straight'],['sneaker','#ffffff','#d8d2c8','White leather sneakers','Shoes','sneakers','white','#f5f5f5',2,''],['heel','#c49a74','#000','Tan block heels','Shoes','heels','tan','#c49a6c',4,''],['bag','#6b4a32','#3e2a1c','Brown leather tote','Bag','tote','brown','#6b4a32',3,'']];
+  D.forEach(d=>S.items.push({id:uid(),img:swatchImg(d[0],d[1],d[2]),name:d[3],cat:d[4],subtype:d[5],colors:[{name:d[6],hex:d[7]}],formality:d[8],fit:d[9],seasons:seasonsFor(d[5]),pattern:'solid',status:'done',demo:true}));
   save();renderItems();toast('Sample wardrobe added');
 };
 
-// ---------- styling ----------
+// ================= OUTFIT ENGINE (on-device) =================
 const OCC=[['Casual','☕'],['Work','💼'],['Date','🍷'],['Party','✨'],['Festive','🪔'],['Travel','✈️']];
 function renderOcc(){$('#occ').innerHTML=OCC.map(([n,e])=>`<button class="${n===S.occasion?'on':''}" data-o="${n}"><span>${e}</span>${n}</button>`).join('');$$('#occ button').forEach(b=>b.onclick=()=>{S.occasion=b.dataset.o;save();renderOcc()})}
+const OCCR={Casual:[1,3],Work:[3,4],Date:[2,4],Party:[3,5],Festive:[3,5],Travel:[1,2]};
+const TITLES={Casual:['Easy Sunday','Off-Duty Cool','Weekend Ease','Coffee Run','Simple & Sharp','Laid-back Edit'],Work:['Boardroom Ready','Quiet Authority','Desk to Dinner','Polished Pro','Sharp Monday','Smart Edit'],Date:['First Impression','Golden Hour','Soft Romance','Dinner for Two','Evening Charm','Easy Allure'],Party:['After Dark','Main Character','Night Out','Spotlight','Late Bloom','Statement Night'],Festive:['Festive Glow','Celebration Edit','Heritage Chic','Mehendi Mood','Diwali Ready','Family Gathering'],Travel:['Airport Easy','On the Move','Explorer','Day Tripper','Jet-set Comfort','City Wander']};
+const MENS_NO=['skirt','dress','gown','blouse','crop top','heels','saree','lehenga'];
+function gEligible(it){const fit=S.m.fit||'womenswear';const sub=(it.subtype||'').toLowerCase()+' '+(it.name||'').toLowerCase();if(fit==='menswear')return !MENS_NO.some(w=>sub.includes(w))&&!(it.cat==='Dress');if(fit==='womenswear')return !sub.includes('sherwani');return true}
+const sub=it=>((it.subtype||'')+' '+(it.name||'')).toLowerCase();
+const isDark=c=>c&&hsl(c.hex||'#888').l<0.32;
+const isBright=c=>c&&!isNeutral(c)&&hsl(c.hex).s>0.45;
+const patterned=it=>it.pattern&&it.pattern!=='solid';
 
-function profileText(){
-  const r=bodyShape();const m=S.m;const u=S.unit;
-  return `Client: ${m.name||'client'}; dresses in ${m.fit||'womenswear'}.
-Measurements (${u}): height ${m.height||'?'}, shoulders ${m.shoulder||'?'}, bust/chest ${m.bust||'?'}, waist ${m.waist||'?'}, hips ${m.hips||'?'}, inseam ${m.inseam||'?'}.
-Computed body shape: ${r?r.shape+(r.frame?', '+r.frame:'')+(r.legs?', '+r.legs:'')+` (waist/hip ${r.ratio.wh}, top/hip ${r.ratio.bh})`:'unknown — measurements incomplete'}.
-Skin undertone: ${m.tone||'unknown'}. Style notes: ${m.notes||'none'}.`;
+function harmony(cols){
+  const chrom=[];cols.forEach(c=>{if(c&&!isNeutral(c)&&!chrom.find(x=>x.name===c.name))chrom.push(c)});
+  if(chrom.length===0)return {s:1,label:'tonal neutrals — effortless and polished'};
+  if(chrom.length===1)return {s:2,label:`a single ${chrom[0].name} pop against neutrals`};
+  if(chrom.length===2){let d=Math.abs(hsl(chrom[0].hex).h-hsl(chrom[1].hex).h);d=Math.min(d,360-d);
+    if(d<35)return {s:1.5,label:'analogous tones that blend softly'};
+    if(d>=150)return {s:1.5,label:'complementary contrast'};
+    if(d>=100&&d<150)return {s:0.4,label:'bold triadic mix'};
+    return {s:-1.5,label:'colours that compete'}}
+  return {s:-2.5,label:'too many colours'};
 }
-function wardrobeText(items){return items.map(i=>`${i.id} | ${i.cat} | ${i.name}${i.subtype?' ('+i.subtype+')':''} | colours: ${(i.colors||[]).map(c=>c.name).join('/')||'?'} | pattern: ${i.pattern||'?'} | fabric: ${i.fabric||'?'} | fit: ${i.fit||'?'} | formality ${i.formality||'?'}/5 | seasons: ${(i.seasons||[]).join(',')||'?'}`).join('\n')}
+function scoreOutfit(parts,ctx){
+  const {occ,weather,body,tone}=ctx;const [lo,hi]=OCCR[occ];
+  let s=0;const why=[],tips=[];
+  const main=parts.filter(p=>['Top','Bottom','Dress','Ethnic','Outerwear'].includes(p.cat));
+  const top=parts.find(p=>p.cat==='Top'),bot=parts.find(p=>p.cat==='Bottom'),dress=parts.find(p=>p.cat==='Dress'||p.cat==='Ethnic'),outer=parts.find(p=>p.cat==='Outerwear'),shoe=parts.find(p=>p.cat==='Shoes');
+  // formality
+  parts.forEach(p=>{const f=p.formality||3;if(f<lo)s-=(lo-f)*1.6;if(f>hi)s-=(f-hi)*1.3});
+  // occasion flavour
+  const all=parts.map(sub).join(' ');
+  if(occ==='Festive'){if(parts.some(p=>p.cat==='Ethnic'))s+=3;else s-=1}
+  if(occ==='Work'){if(has(all,'blazer','shirt','trousers','formal'))s+=1;if(has(all,'shorts','hoodie','graphic','crop','tank','joggers'))s-=3}
+  if(occ==='Date'){if(dress||has(all,'skirt','blouse'))s+=0.8}
+  if(occ==='Party'){if(has(all,'heels','blazer','gown','dress'))s+=1}
+  if(occ==='Travel'){if(has(all,'sneakers','jeans','joggers','t-shirt'))s+=1;if(has(all,'heels','gown','lehenga'))s-=2.5}
+  if(occ==='Casual'){if(has(all,'gown','lehenga','sherwani','saree'))s-=4;if(has(all,'heels'))s-=0.6}
+  // weather
+  if(weather==='Hot'){if(has(all,'sweater','hoodie','coat','boots'))s-=3;if(outer&&!has(sub(outer),'blazer'))s-=2;if(has(all,'shorts','sandals','tank','dress','linen'))s+=1}
+  if(weather==='Cold'){if(has(all,'shorts','tank','sandals','crop'))s-=3;if(has(all,'sweater','coat','boots','jacket'))s+=1.5}
+  if(weather==='Rainy'){if(has(all,'sandals','heels'))s-=1;if(has(all,'boots','jacket','coat'))s+=1;if(bot&&!isDark(bot.colors?.[0])&&!isNeutral(bot.colors?.[0]))s-=0.5}
+  // colour
+  const h=harmony(main.map(p=>p.colors?.[0]).filter(Boolean));s+=h.s;
+  if(main.filter(patterned).length>1){s-=2;}
+  if(shoe&&shoe.colors?.[0]&&!isNeutral(shoe.colors[0])&&!main.some(p=>p.colors?.[0]?.name===shoe.colors[0].name))s-=0.6;
+  // undertone
+  const statement=main.map(p=>p.colors?.[0]).find(c=>c&&!isNeutral(c))||main.map(p=>p.colors?.[0]).find(Boolean);
+  if(tone&&statement){if(tone==='Warm'&&WARM.has(statement.name)){s+=0.7;why.push(`${statement.name} suits a warm undertone`)}
+    if(tone==='Cool'&&COOL.has(statement.name)){s+=0.7;why.push(`${statement.name} flatters a cool undertone`)}
+    if(tone==='Warm'&&COOL.has(statement.name)&&!NEUTRALS.has(statement.name))s-=0.4;if(tone==='Cool'&&WARM.has(statement.name)&&!NEUTRALS.has(statement.name))s-=0.4}
+  // body shape
+  if(body){
+    const tc=top?.colors?.[0],bc=bot?.colors?.[0],tf=(top?.fit||'').toLowerCase(),bf=(bot?.fit||'').toLowerCase()+' '+sub(bot||{}),df=(dress?.fit||'').toLowerCase()+' '+sub(dress||{});
+    switch(body.shape){
+      case 'Pear':
+        if(top&&(isBright(tc)||patterned(top))){s+=1.5;why.push('the eye-catching top draws attention up and balances the hips')}
+        if(bot&&isDark(bc)){s+=1;why.push('a darker bottom streamlines the hip line')}
+        if(bot&&has(bf,'wide','straight','a-line','flared','bootcut')){s+=1.5;why.push(`the ${bot.fit||'relaxed'} cut skims rather than clings`)}
+        if(bot&&has(bf,'skinny','pencil'))s-=1;if(bot&&patterned(bot))s-=1;if(has(all,'shorts'))s-=0.5;
+        if(dress&&has(df,'a-line','wrap')){s+=1.5;why.push('an A-line/wrap shape flows over the hips')}
+        tips.push(top?'Tuck the top to mark the waist; a boat or square neckline balances the shoulders.':'A boat or square neckline balances the shoulders.');break;
+      case 'Inverted Triangle':
+        if(bot&&(patterned(bot)||isBright(bc)||!isDark(bc))){s+=1.2;why.push('lighter or brighter bottoms add volume below to balance broad shoulders')}
+        if(bot&&has(bf,'wide','a-line','flared','skirt','pleat')){s+=1.5;why.push('the fuller leg/skirt balances the upper body')}
+        if(top&&isDark(tc)&&!patterned(top)){s+=1;why.push('a darker, plain top keeps the shoulders understated')}
+        if(top&&(isBright(tc)||patterned(top)))s-=1;
+        if(dress&&has(df,'a-line','maxi','flare')){s+=1.2;why.push('the flared hem balances the shoulders')}
+        tips.push('Choose a V-neck or open collar to soften the shoulder line.');break;
+      case 'Hourglass':
+        if(has(tf+' '+bf+' '+df,'fitted','wrap','pencil','bodycon','tailored','a-line','slim')){s+=1.5;why.push('the fitted shape follows a naturally defined waist')}
+        if(has(tf+' '+df,'oversized','shift'))s-=1.5;if(dress&&has(df,'wrap','bodycon','a-line')){s+=1}
+        tips.push('Belt or tuck at the natural waist to show off the shape.');break;
+      case 'Rectangle':
+        if(outer){s+=1.5;why.push('the extra layer adds structure and shape')}
+        if(top&&bot&&tc&&bc&&tc.name!==bc.name){s+=1;why.push('top/bottom contrast creates the illusion of curves')}
+        if(has(bf+' '+df+' '+tf,'skirt','a-line','peplum','wrap','cropped')){s+=1;why.push('the cut adds definition at the waist')}
+        if(parts.some(p=>has(sub(p),'belt')))s+=1;
+        tips.push('Add a belt or a cropped layer to create a waistline.');break;
+      case 'Apple':
+        if(top&&isDark(tc)){s+=1;why.push('a darker top creates a slimming centre line')}
+        if(has(tf,'crop')||has(all,'tank top','crop top'))s-=2;if(has(tf,'fitted','tight'))s-=1;
+        if(outer){s+=1.5;why.push('an open layer draws a long vertical line')}
+        if(bot&&has(bf,'straight','skinny','slim')){s+=0.5;why.push('slim trousers show off the legs')}
+        if(dress&&has(df,'a-line','shift','empire','maxi')){s+=1.2;why.push('the dress flows away from the midsection')}
+        tips.push('Wear the outer layer open and keep necklines open (V-neck, collar) to lengthen the torso.');break;
+    }
+    if(body.height==='short'){
+      const cs=main.map(p=>p.colors?.[0]?.name).filter(Boolean);if(new Set(cs).size<=1||(top&&bot&&tc&&bc&&Math.abs(hsl(tc.hex).l-hsl(bc.hex).l)<0.2)){s+=1;why.push('the low-contrast palette elongates a petite frame')}
+      if(has(all,'heels'))s+=0.5;if(has(tf+' '+df,'oversized','maxi','gown'))s-=0.8;
+      tips.push('Match shoe tone to the trousers or skin to lengthen the leg.');
+    }
+    if(body.height==='tall'){if(has(bf,'wide','flared'))s+=0.5;if(top&&bot&&tc&&bc&&tc.name!==bc.name)s+=0.4}
+    if(body.legsK==='short'){if(has(all,'heels'))s+=0.5;tips.push('Tuck into high-rise bottoms to lengthen the legs.')}
+  }
+  // item-specific tips
+  if(top&&bot&&!has(sub(top),'crop'))tips.unshift(has(occ,'Work')?`Fully tuck the ${top.subtype||'top'} for a crisp line.`:`Try a half-tuck of the ${top.subtype||'top'} at the front.`);
+  if(outer&&weather!=='Cold')tips.push(`Push up the ${outer.subtype||'jacket'} sleeves for an easy feel.`);
+  if(weather==='Cold'&&!outer)tips.push('Add a warm layer on top.');
+  return {s,why,tips,harm:h.label};
+}
+function localLooks(items,n){
+  const occ=S.occasion,weather=$('#s-weather').value,body=bodyShape(),tone=S.m.tone;
+  const ok=items.filter(gEligible);
+  const by=c=>ok.filter(i=>i.cat===c);
+  const tops=by('Top'),bots=by('Bottom'),dresses=by('Dress'),ethnic=by('Ethnic'),shoes=by('Shoes'),outers=by('Outerwear'),bags=by('Bag'),accs=by('Accessory');
+  const bases=[];
+  tops.forEach(t=>bots.forEach(b=>bases.push([t,b])));
+  dresses.forEach(d=>bases.push([d]));
+  ethnic.forEach(e=>{if(has(sub(e),'kurta')&&bots.length){bots.forEach(b=>{if(!has(sub(b),'shorts','skirt'))bases.push([e,b])})}else bases.push([e])});
+  const ctx={occ,weather,body,tone};
+  const cands=bases.map(base=>{
+    let parts=[...base];let best=scoreOutfit(parts,ctx);
+    if(shoes.length){let bs=null,bp=null;shoes.forEach(sh=>{const r=scoreOutfit([...parts,sh],ctx);if(!bs||r.s>bs.s){bs=r;bp=sh}});parts.push(bp);best=bs}
+    else best={...best,s:best.s-0.5};
+    outers.forEach(o=>{const r=scoreOutfit([...parts,o],ctx);if(r.s>best.s+0.3&&!parts.some(p=>p.cat==='Outerwear')){parts=[...parts,o];best=r}});
+    if(occ!=='Travel'||bags.some(b=>has(sub(b),'backpack'))){let bb=null,br=null;bags.forEach(b=>{const r=scoreOutfit([...parts,b],ctx);if(!br||r.s>br.s){br=r;bb=b}});if(bb&&br.s>=best.s-0.2){parts.push(bb);best=br}}
+    const acc=accs.find(a=>has(sub(a),'belt')&&body&&['Hourglass','Rectangle'].includes(body.shape)&&parts.some(p=>p.cat==='Bottom'||p.cat==='Dress'))||accs.find(a=>has(sub(a),'watch')&&occ==='Work');
+    if(acc)parts.push(acc);
+    return {parts,...best};
+  }).sort((a,b)=>b.s-a.s);
+  // diverse selection
+  const chosen=[],use={};
+  for(const c of cands){if(chosen.length>=n)break;const base=c.parts.filter(p=>['Top','Bottom','Dress','Ethnic'].includes(p.cat));
+    if(base.some(p=>(use[p.id]||0)>=2))continue;
+    if(chosen.some(x=>{const ids=new Set(x.parts.map(p=>p.id));const ov=c.parts.filter(p=>ids.has(p.id)).length;return ov/Math.max(c.parts.length,x.parts.length)>0.66}))continue;
+    chosen.push(c);base.forEach(p=>use[p.id]=(use[p.id]||0)+1)}
+  for(const c of cands){if(chosen.length>=n)break;if(!chosen.includes(c))chosen.push(c)}
+  const best=chosen[0]?.s||1;
+  const titles=[...(TITLES[occ]||TITLES.Casual)];
+  const looks=chosen.map((c,k)=>{
+    const cols=[...new Set(c.parts.filter(p=>!['Accessory'].includes(p.cat)).map(p=>p.colors?.[0]?.name).filter(Boolean))];
+    const missShoes=!c.parts.some(p=>p.cat==='Shoes');
+    let missing='';if(missShoes)missing=occ==='Work'||occ==='Party'?'Neutral heels or loafers':'Clean white sneakers';
+    else if(body&&['Hourglass','Rectangle'].includes(body.shape)&&!c.parts.some(p=>has(sub(p),'belt'))&&(c.parts.some(p=>p.cat==='Dress')||c.parts.some(p=>p.cat==='Bottom')))missing='A slim belt';
+    const why=[...new Set(c.why)].slice(0,2);
+    return {title:titles[k%titles.length],vibe:cap(c.harm),item_ids:c.parts.map(p=>p.id),
+      why_it_flatters:why.length?cap(why.join('; '))+'.':(body?`A balanced, easy silhouette for a ${body.shape.toLowerCase()} shape.`:'Add measurements on the Body tab for shape-specific advice.'),
+      styling_tips:[...new Set(c.tips)].slice(0,2).join(' '),colour_story:cols.join(' + '),
+      match_score:Math.max(1,Math.min(5,Math.round(5-(best-c.s)/2.5))),missing_piece:missing};
+  });
+  const gaps=[];const t=ok;
+  if(!t.some(i=>i.cat==='Shoes'))gaps.push('A versatile pair of shoes (white sneakers or nude block heels)');
+  if(body)gaps.push(SHAPES[body.shape].gap);
+  if(!t.some(i=>i.cat==='Outerwear'))gaps.push('A neutral layer — denim jacket or tailored blazer');
+  if(t.filter(i=>i.cat==='Bottom').length<2)gaps.push('Dark straight-leg trousers to double your top combinations');
+  if(occ==='Festive'&&!t.some(i=>i.cat==='Ethnic'))gaps.push('One ethnic piece — a straight kurta works with jeans too');
+  return {looks,wardrobe_gaps:gaps.slice(0,3),local:true};
+}
+
+function profileText(){const r=bodyShape();const m=S.m;return `Client: ${m.name||'client'}; dresses in ${m.fit||'womenswear'}. Measurements (${S.unit}): height ${m.height||'?'}, shoulders ${m.shoulder||'?'}, bust/chest ${m.bust||'?'}, waist ${m.waist||'?'}, hips ${m.hips||'?'}, inseam ${m.inseam||'?'}. Body shape: ${r?r.shape+(r.frame?', '+r.frame:''):'unknown'}. Undertone: ${m.tone||'unknown'}. Notes: ${m.notes||'none'}.`}
+function wardrobeText(items){return items.map(i=>`${i.id} | ${i.cat} | ${i.name} | ${i.subtype||''} | colours ${(i.colors||[]).map(c=>c.name).join('/')} | ${i.pattern||''} | fit ${i.fit||'?'} | formality ${i.formality||'?'}`).join('\n')}
 
 $('#styleBtn').onclick=async()=>{
   const items=S.items.filter(i=>i.status==='done'||i.status==='manual');
@@ -426,54 +668,27 @@ $('#styleBtn').onclick=async()=>{
   const n=+$('#s-count').value;
   try{
     let looks;
-    if(sample){
-      const prompt=`You are an expert personal stylist. Build ${n} complete outfits for the client using ONLY items from the wardrobe list (refer to them by their exact id). Each outfit must be wearable and complete (e.g. top+bottom+shoes, or dress+shoes), adding outerwear/bag/accessory when it helps. Do not reuse the exact same combination. Prefer items whose silhouette flatters the client's body shape and proportions; explain why specifically in terms of their measurements/shape. Respect colour harmony and the client's undertone and notes.
-
-${profileText()}
-
-Occasion: ${S.occasion}. Weather: ${$('#s-weather').value}. Extra request: ${$('#s-extra').value||'none'}.
-
-WARDROBE (id | category | name | details):
-${wardrobeText(items)}
-
-Return ONLY JSON: {"looks":[{"title":"evocative 2-4 word name","vibe":"one line mood","item_ids":["id",...],"why_it_flatters":"1-2 sentences tied to body shape","styling_tips":"1-2 sentences: tuck, roll, layer, accessorise","colour_story":"short phrase","match_score":1-5,"missing_piece":"optional single item to buy that would elevate this look, or empty string"}],"wardrobe_gaps":["up to 3 short items worth adding to this wardrobe for this body shape"]}`;
-      $('#stream').textContent='';
-      const res=await sample.json(prompt,{modelTier:'default',onText:({text})=>{$('#stream').textContent=text.slice(-400)}});
-      looks=res;
+    if(engine==='claude'&&sample){
+      try{
+        looks=await sample.json(`You are an expert personal stylist. Build ${n} complete outfits using ONLY items from the wardrobe (exact ids). Complete = top+bottom+shoes or dress+shoes, add outerwear/bag/accessory when helpful. Explain fit for the client's body shape.\n${profileText()}\nOccasion: ${S.occasion}. Weather: ${$('#s-weather').value}. Extra: ${$('#s-extra').value||'none'}.\nWARDROBE:\n${wardrobeText(items)}\nReturn ONLY JSON: {"looks":[{"title":"","vibe":"","item_ids":[],"why_it_flatters":"","styling_tips":"","colour_story":"","match_score":1-5,"missing_piece":""}],"wardrobe_gaps":[]}`,{modelTier:'default',onText:({text})=>{$('#stream').textContent=text.slice(-300)}});
+      }catch(e){looks=localLooks(items,n)}
     }else{
+      await new Promise(r=>setTimeout(r,250));
       looks=localLooks(items,n);
     }
     S.looks=looks;save();renderLooks();
     setTimeout(()=>$('#looks').scrollIntoView({behavior:'smooth',block:'start'}),100);
-  }catch(e){
-    if(e&&e.code==='not_granted'){sample=null;updateBadge();S.looks=localLooks(items,n);renderLooks();toast('AI declined — showing rule-based outfits')}
-    else if(e&&e.code==='rate_limited')toast('Too many requests — wait a moment and try again');
-    else toast('Something went wrong — please try again');
-  }finally{btn.disabled=false;btn.innerHTML='✦ Create outfits';$('#stream').textContent=''}
+  }catch(e){console.error(e);toast('Something went wrong — please try again')}
+  finally{btn.disabled=false;btn.innerHTML='✦ Create outfits';$('#stream').textContent=''}
 };
-
-// rule-based fallback
-function localLooks(items,n){
-  const occF={Casual:[1,3],Work:[3,5],Date:[3,5],Party:[3,5],Festive:[3,5],Travel:[1,3]}[S.occasion]||[1,5];
-  const ok=i=>!i.formality||(i.formality>=occF[0]-1&&i.formality<=occF[1]+1);
-  const pick=c=>items.filter(i=>i.cat===c&&ok(i));
-  const tops=pick('Top'),bots=pick('Bottom'),dresses=[...pick('Dress'),...pick('Ethnic')],shoes=pick('Shoes'),outer=pick('Outerwear'),bags=pick('Bag');
-  const combos=[];
-  tops.forEach(t=>bots.forEach(b=>combos.push([t,b])));dresses.forEach(d=>combos.push([d]));
-  combos.sort(()=>Math.random()-.5);
-  const r=bodyShape();const tip=r?SHAPES[r.shape].t[0]:'Balance proportions top and bottom.';
-  return {looks:combos.slice(0,n).map((c,k)=>{const ids=c.map(i=>i.id);if(shoes.length)ids.push(shoes[k%shoes.length].id);if(outer.length&&S.occasion==='Work')ids.push(outer[0].id);if(bags.length&&k%2===0)ids.push(bags[0].id);return{title:['Easy Edit','Clean Lines','Weekend Ease','Polished Pair','Soft Contrast','Quiet Luxe'][k%6],vibe:S.occasion+' outfit',item_ids:ids,why_it_flatters:r?`For a ${r.shape.toLowerCase()} shape: ${tip.toLowerCase()}.`:'Add measurements for body-specific advice.',styling_tips:'Tuck the top slightly at the front to define the waist.',colour_story:c.map(i=>i.colors?.[0]?.name).filter(Boolean).join(' + '),match_score:3,missing_piece:''}}),wardrobe_gaps:[],offline:true};
-}
 
 function renderLooks(){
   const L=S.looks;const box=$('#looks');
-  if(!L||!L.looks||!L.looks.length){box.innerHTML='';return}
+  if(!L||!L.looks||!L.looks.length){box.innerHTML=L&&L.looks?'<div class="empty"><b>No complete outfits yet</b>Add at least one top and one bottom, or a dress.</div>':'';return}
   const byId=Object.fromEntries(S.items.map(i=>[i.id,i]));
-  box.innerHTML=(L.offline?`<div class="notice">AI styling isn't available in this view, so these are rule-based combinations. Open the page on claude.ai for full AI styling.</div>`:'')+
-  `<h2 style="font-size:24px;margin:6px 2px 12px">${esc(S.occasion)} edit <span style="font-style:italic;color:var(--muted);font-weight:400;font-size:16px">for ${esc(S.m.name||'you')}</span></h2>`+
+  box.innerHTML=`<h2 style="font-size:24px;margin:6px 2px 12px">${esc(S.occasion)} edit <span style="font-style:italic;color:var(--muted);font-weight:400;font-size:16px">for ${esc(S.m.name||'you')}</span></h2>`+
   L.looks.map((l,k)=>{
-    const pcs=(l.item_ids||[]).map(id=>byId[id]).filter(Boolean);
-    const sc=Math.max(0,Math.min(5,+l.match_score||0));
+    const pcs=(l.item_ids||[]).map(id=>byId[id]).filter(Boolean);const sc=Math.max(0,Math.min(5,+l.match_score||0));
     return `<article class="look"><div class="hd"><span class="n">No. ${k+1}</span><h3>${esc(l.title)}</h3><span class="score" title="Match ${sc}/5">${[1,2,3,4,5].map(i=>`<i class="${i<=sc?'f':''}"></i>`).join('')}</span></div>
     <p class="vibe">${esc(l.vibe||'')}${l.colour_story?' · '+esc(l.colour_story):''}</p>
     <div class="strip">${pcs.map(p=>`<div class="pc"><div class="ph" style="background-image:url(${p.img})"></div><small>${esc(p.name)}</small></div>`).join('')}${l.missing_piece?`<div class="pc buy"><div class="ph">＋<span>${esc(l.missing_piece)}</span></div><small>Worth adding</small></div>`:''}</div>
@@ -481,57 +696,18 @@ function renderLooks(){
   (L.wardrobe_gaps&&L.wardrobe_gaps.length?`<div class="card"><h2>Smart additions</h2><p class="sub">Pieces that would unlock more outfits for this body shape.</p><ul class="tips">${L.wardrobe_gaps.map(g=>`<li>${esc(g)}</li>`).join('')}</ul></div>`:'');
 }
 
-// ---------- AI availability ----------
-let aiMode='none'; // 'claude' | 'api' | 'none'
-const KEY_LS='atelier.apikey';
-function getKey(){try{return localStorage.getItem(KEY_LS)||''}catch(e){return ''}}
-function setKey(k){try{k?localStorage.setItem(KEY_LS,k):localStorage.removeItem(KEY_LS)}catch(e){}}
-function blobToB64(b){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(b)})}
-function parseJSON(t){t=t.trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();try{return JSON.parse(t)}catch(e){const m=t.match(/[\[{][\s\S]*[\]}]/);if(m)return JSON.parse(m[0]);throw {code:'bad_json',message:'Could not read AI reply'}}}
-// Direct Anthropic API adapter, same shape as the page's sample() — used in the Android app
-function makeApiSample(key){
-  async function call(input,opts={}){
-    const content=[];
-    for(const b of (opts.images||[])) content.push({type:'image',source:{type:'base64',media_type:b.type||'image/jpeg',data:await blobToB64(b)}});
-    content.push({type:'text',text:typeof input==='string'?input:input.map(m=>m.content).join('\n')});
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:4096,messages:[{role:'user',content}]})});
-    if(r.status===401||r.status===403)throw {code:'bad_key',message:'API key rejected'};
-    if(r.status===429)throw {code:'rate_limited',message:'Rate limited'};
-    if(!r.ok)throw {code:'http_'+r.status,message:await r.text()};
-    const j=await r.json();const text=(j.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
-    if(opts.onText)opts.onText({text,delta:text});
-    return {text,truncated:j.stop_reason==='max_tokens'};
-  }
-  const s=(i,o)=>call(i,o);
-  s.json=async(i,o)=>parseJSON((await call(i+'\n\nRespond with JSON only, no prose, no code fences.',o)).text);
-  s.limits=async()=>({images:true});
-  return s;
-}
-function updateBadge(){$('#aiBadge').textContent=sample?(imgOK?'✦ AI stylist on':'✦ AI (no vision)'):'⚙ Offline — add key'}
+// ================= ENGINE SELECTION =================
+function updateBadge(){$('#aiBadge').textContent=engine==='claude'?'✦ Claude AI':engine==='local'?'✦ On-device AI':'Manual tagging'}
+$('#aiBadge').onclick=()=>toast(engine==='local'?'Everything runs on this phone — no internet or account needed':engine==='claude'?'Photo analysis by Claude; outfits work offline too':'Auto-tagging unavailable here — tap items to set their type. Colours are still detected automatically.');
 async function initAI(){
-  sample=null;imgOK=false;aiMode='none';
-  try{
-    const c=window.claude;
-    if(c&&c.use){sample=await c.use('sample');if(sample){aiMode='claude';try{const lim=await sample.limits();imgOK=!!(lim&&lim.images)}catch(e){imgOK=false}}}
-  }catch(e){sample=null}
-  if(!sample&&getKey()){sample=makeApiSample(getKey());imgOK=true;aiMode='api'}
+  if(await localAvailable()){engine='local'}
+  else{
+    try{const c=window.claude;if(c&&c.use){sample=await c.use('sample');if(sample){let ok=false;try{ok=!!(await sample.limits()).images}catch(e){}if(ok)engine='claude'}}}catch(e){}
+  }
   updateBadge();
+  const pend=S.items.filter(i=>i.status==='error'||(i.status==='manual'&&(i.name||'').endsWith(' item')));
+  if(engine!=='manual'&&pend.length)analyze(pend);
 }
-$('#aiBadge').onclick=()=>{
-  if(aiMode==='claude'){toast('AI is provided by Claude here — no key needed');return}
-  $('#sheet').innerHTML=`<h2 style="font-size:21px">AI settings</h2>
-  <p class="sub" style="margin-top:6px">To use photo analysis and AI styling in the app, paste an Anthropic API key (from console.anthropic.com). It's stored only on this device and sent only to Anthropic.</p>
-  <label class="f">API key<input id="k-in" type="password" placeholder="sk-ant-…" value="${esc(getKey())}" autocomplete="off"></label>
-  <p class="sub" id="k-msg" style="margin:10px 0 0"></p>
-  <div class="row" style="margin-top:14px"><button class="btn ghost" id="k-clear">Remove</button><div class="spacer"></div><button class="btn ghost" id="k-close">Close</button><button class="btn" id="k-save">Save & test</button></div>`;
-  $('#modal').classList.add('on');
-  $('#k-close').onclick=closeModal;
-  $('#k-clear').onclick=()=>{setKey('');initAI();closeModal();toast('Key removed')};
-  $('#k-save').onclick=async()=>{const k=$('#k-in').value.trim();if(!k)return;$('#k-msg').textContent='Testing…';
-    try{await makeApiSample(k)('Reply with the single word OK.');setKey(k);await initAI();closeModal();toast('AI stylist connected ✦');
-      const pend=S.items.filter(i=>i.status==='error'||(i.status==='manual'&&i.name==='Unlabelled item'));if(pend.length)analyze(pend);
-    }catch(e){$('#k-msg').textContent=e&&e.code==='bad_key'?'That key was rejected — check it and try again.':'Could not reach Anthropic: '+(e.message||e.code||'network error')}};
-};
 
 // ---------- init ----------
 load();
