@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir app && cd app
           npm init -y > /dev/null
-          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 @huggingface/transformers@3
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7 @capacitor/filesystem@7 @capacitor/share@7 @huggingface/transformers@3
           mkdir -p www/lib www/models
           cp ../index.html www/index.html
 
